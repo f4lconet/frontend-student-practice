@@ -217,6 +217,7 @@ export default function SurveyPage() {
             <form
               onSubmit={form.handleSubmit(handleSubmit)}
               className="space-y-6"
+              noValidate
             >
               {fields
                 .sort((a, b) => a.order - b.order)

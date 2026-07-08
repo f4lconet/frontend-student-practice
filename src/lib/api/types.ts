@@ -12,8 +12,10 @@ export class ApiError extends Error {
 export interface ApiRequestConfig extends Omit<RequestInit, "body"> {
   params?: Record<string, string | number | boolean | undefined | null>;
   body?: unknown;
-  /** Пропустить автоматическую подстановку JWT (День 3) */
+  /** Пропустить автоматическую подстановку JWT */
   skipAuth?: boolean;
+  /** Не вызывать обработчик 401 (для случаев, когда 401 — ожидаемое поведение, например проверка сессии) */
+  skipUnauthorizedRedirect?: boolean;
 }
 
 export interface ApiClientOptions {

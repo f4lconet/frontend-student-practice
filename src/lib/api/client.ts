@@ -1,4 +1,5 @@
 import { ApiError, type ApiClientOptions, type ApiRequestConfig } from "./types";
+import { getAccessToken } from "./token-strategy";
 
 const DEFAULT_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
@@ -12,6 +13,16 @@ export function setAccessTokenGetter(getter: () => string | null) {
 
 export function setUnauthorizedHandler(handler: () => void) {
   unauthorizedHandler = handler;
+}
+
+/**
+ * Получить токен из зарегистрированного getter'а или из стратегии хранения.
+ */
+function resolveAccessToken(): string | null {
+  if (accessTokenGetter) {
+    return accessTokenGetter();
+  }
+  return getAccessToken();
 }
 
 function buildUrl(
@@ -42,8 +53,8 @@ function buildHeaders(
     headers.set("Content-Type", "application/json");
   }
 
-  if (!config.skipAuth && accessTokenGetter) {
-    const token = accessTokenGetter();
+  if (!config.skipAuth) {
+    const token = resolveAccessToken();
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
@@ -83,7 +94,11 @@ export async function apiRequest<T>(
 
   const body = await parseResponseBody(response);
 
-  if (response.status === 401 && unauthorizedHandler) {
+  if (
+    response.status === 401 &&
+    !config.skipUnauthorizedRedirect &&
+    unauthorizedHandler
+  ) {
     unauthorizedHandler();
   }
 
