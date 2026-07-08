@@ -2,6 +2,7 @@ import { apiClient } from "./client";
 import type { Cohort } from "@/entities/cohort";
 import type { SurveyField } from "@/entities/survey-field";
 import type { TestTask } from "@/entities/test-task";
+import type { ApplicationStatus } from "@/entities";
 
 export interface SurveyConfigResponse {
   cohort: Cohort;
@@ -10,6 +11,7 @@ export interface SurveyConfigResponse {
 
 export interface SurveySubmitResponse {
   message: string;
+  application_id?: string;
 }
 
 /**
@@ -17,17 +19,26 @@ export interface SurveySubmitResponse {
  * GET /api/cohorts/:slug/survey
  */
 export function fetchSurveyConfig(slug: string) {
-  return apiClient.get<SurveyConfigResponse>(`/api/cohorts/${slug}/survey`);
+  return apiClient.get<SurveyConfigResponse>(`/cohorts/${slug}/survey`);
 }
 
 /**
- * Отправить анкету (без авторизации).
+ * Отправить анкету.
  * POST /api/cohorts/:slug/survey
+ *
+ * Если не передан skipAuth: true — будет авторизованный запрос (для авторизованных пользователей).
+ * Для публичной анкеты (без регистрации) — передаём skipAuth: true.
  */
-export function submitSurvey(slug: string, data: Record<string, string>) {
-  return apiClient.post<SurveySubmitResponse>(`/api/cohorts/${slug}/survey`, data, {
-    skipAuth: true,
-  });
+export function submitSurvey(
+  slug: string,
+  data: Record<string, string>,
+  options?: { skipAuth?: boolean },
+) {
+  return apiClient.post<SurveySubmitResponse>(
+    `/cohorts/${slug}/survey`,
+    data,
+    { skipAuth: options?.skipAuth ?? false },
+  );
 }
 
 /**
@@ -35,7 +46,7 @@ export function submitSurvey(slug: string, data: Record<string, string>) {
  * GET /api/cohorts/:slug/test-task
  */
 export function fetchTestTask(slug: string) {
-  return apiClient.get<TestTask>(`/api/cohorts/${slug}/test-task`, {
+  return apiClient.get<TestTask>(`/cohorts/${slug}/test-task`, {
     skipAuth: true,
   });
 }

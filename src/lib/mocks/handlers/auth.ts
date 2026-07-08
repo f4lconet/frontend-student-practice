@@ -99,19 +99,24 @@ function parseUserIdFromToken(token: string): string | null {
   return parts.slice(2, -1).join("-");
 }
 
-/** Сохранить сессию в localStorage (чтобы после перезагрузки пользователь оставался авторизованным) */
+/** Сохранить сессию в localStorage + установить куку для middleware */
 function saveSession(token: string, user: AuthUser) {
   if (typeof window === "undefined") return;
   localStorage.setItem(
     STORAGE_KEY_SESSION,
     JSON.stringify({ token, user }),
   );
+  // Устанавливаем куку auth_session для middleware
+  // Формат: userId|role, живёт 24 часа
+  document.cookie = `auth_session=${user.id}|${user.role}; path=/; max-age=86400; SameSite=Lax`;
 }
 
-/** Очистить сессию */
+/** Очистить сессию и куку */
 function clearSession() {
   if (typeof window === "undefined") return;
   localStorage.removeItem(STORAGE_KEY_SESSION);
+  // Удаляем куку auth_session
+  document.cookie = "auth_session=; path=/; max-age=0; SameSite=Lax";
 }
 
 /** Загрузить сессию */
@@ -128,7 +133,7 @@ function loadSession(): { token: string; user: AuthUser } | null {
 
 export const authHandlers: HttpHandler[] = [
   // POST /api/auth/login
-  http.post("*/api/auth/login", async ({ request }) => {
+  http.post("*/auth/login", async ({ request }) => {
     const body = (await request.json()) as LoginRequest;
     const { email, password } = body;
 
@@ -156,7 +161,7 @@ export const authHandlers: HttpHandler[] = [
   }),
 
   // POST /api/auth/register
-  http.post("*/api/auth/register", async ({ request }) => {
+  http.post("*/auth/register", async ({ request }) => {
     const body = (await request.json()) as RegisterRequest;
     const { email, password } = body;
 
@@ -194,7 +199,7 @@ export const authHandlers: HttpHandler[] = [
   }),
 
   // GET /api/auth/me
-  http.get("*/api/auth/me", async ({ request }) => {
+  http.get("*/auth/me", async ({ request }) => {
     // Сначала пробуем получить пользователя через Authorization header
     const authHeader = request.headers.get("Authorization");
     if (authHeader?.startsWith("Bearer ")) {
@@ -225,7 +230,7 @@ export const authHandlers: HttpHandler[] = [
   }),
 
   // POST /api/auth/logout
-  http.post("*/api/auth/logout", async () => {
+  http.post("*/auth/logout", async () => {
     clearSession();
     return HttpResponse.json({ message: "Выход выполнен" }, { status: 200 });
   }),

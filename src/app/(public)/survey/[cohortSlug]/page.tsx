@@ -32,7 +32,7 @@ export default function SurveyPage() {
     isLoadingTestTask,
     testTaskError,
     handleBackToHome,
-  } = useSurveyPage(slug);
+  } = useSurveyPage(slug, { authenticated: false });
 
   // Динамическая генерация zod-схемы на основе полей
   const surveySchema = fields.length > 0 ? buildSurveySchema(fields) : null;

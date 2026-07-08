@@ -137,7 +137,7 @@ const cohorts: Record<string, Cohort> = {
 
 export const surveyHandlers: HttpHandler[] = [
   // GET /api/cohorts/:slug/survey — конфигурация анкеты + информация о когорте
-  http.get("*/api/cohorts/:slug/survey", async ({ params }) => {
+  http.get("*/cohorts/:slug/survey", async ({ params }) => {
     await delay(400);
 
     const slug = params.slug as string;
@@ -170,7 +170,7 @@ export const surveyHandlers: HttpHandler[] = [
   }),
 
   // POST /api/cohorts/:slug/survey — отправка анкеты
-  http.post("*/api/cohorts/:slug/survey", async ({ request, params }) => {
+  http.post("*/cohorts/:slug/survey", async ({ request, params }) => {
     await delay(600);
 
     const slug = params.slug as string;
@@ -202,7 +202,7 @@ export const surveyHandlers: HttpHandler[] = [
   }),
 
   // GET /api/cohorts/:slug/test-task — получение тестового задания
-  http.get("*/api/cohorts/:slug/test-task", async ({ params }) => {
+  http.get("*/cohorts/:slug/test-task", async ({ params }) => {
     await delay(300);
 
     const slug = params.slug as string;

@@ -7,11 +7,22 @@ import { toast } from "sonner";
 import { fetchSurveyConfig, submitSurvey, fetchTestTask } from "@/lib/api/survey";
 import type { SurveyConfigResponse } from "@/lib/api/survey";
 
+interface UseSurveyPageOptions {
+  /** Prefill-данные из предыдущей заявки (для авторизованных пользователей) */
+  prefillData?: Record<string, string> | null;
+  /** Флаг: отправлять ли анкету с авторизацией (true для авторизованных) */
+  authenticated?: boolean;
+}
+
 /**
- * Хук для страницы публичной анкеты /survey/[cohortSlug].
+ * Хук для страницы анкеты /survey/[cohortSlug].
  * Управляет загрузкой конфигурации, отправкой формы и получением тестового задания.
+ *
+ * Поддерживает:
+ * - Публичный режим (без авторизации)
+ * - Авторизованный режим (с prefill-данными из предыдущей заявки)
  */
-export function useSurveyPage(slug: string) {
+export function useSurveyPage(slug: string, options?: UseSurveyPageOptions) {
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -25,9 +36,13 @@ export function useSurveyPage(slug: string) {
 
   // 2. Отправка анкеты
   const submitMutation = useMutation({
-    mutationFn: (data: Record<string, string>) => submitSurvey(slug, data),
+    mutationFn: (data: Record<string, string>) =>
+      submitSurvey(slug, data, {
+        skipAuth: !options?.authenticated,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["survey-config", slug] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
       toast.success("Анкета успешно отправлена!");
     },
     onError: (error: Error) => {
@@ -57,21 +72,30 @@ export function useSurveyPage(slug: string) {
     router.push("/");
   }, [router]);
 
+  const handleBackToApplications = useCallback(() => {
+    router.push("/applications");
+  }, [router]);
+
+  const fields = configQuery.data?.fields ?? [];
+  const cohortDetails = configQuery.data?.cohort ?? null;
+
   return {
     // Состояние загрузки конфигурации
     config: configQuery.data,
     isLoadingConfig: configQuery.isLoading,
     configError: configQuery.error,
     // Состояние анкеты
-    fields: configQuery.data?.fields ?? [],
-    cohort: configQuery.data?.cohort ?? null,
-    isFieldsEmpty: (configQuery.data?.fields?.length ?? 0) === 0,
+    fields,
+    cohort: cohortDetails,
+    isFieldsEmpty: fields.length === 0,
+    // Prefill-данные
+    prefillData: options?.prefillData ?? null,
     // Проверка доступности анкеты
-    isApplicationPeriodActive: !configQuery.data?.cohort
+    isApplicationPeriodActive: !cohortDetails
       ? null
       : isWithinDates(
-          configQuery.data.cohort.application_start,
-          configQuery.data.cohort.application_end,
+          cohortDetails.application_start,
+          cohortDetails.application_end,
         ),
     // Отправка
     isSubmitting: submitMutation.isPending,
@@ -84,6 +108,7 @@ export function useSurveyPage(slug: string) {
     testTaskError: testTaskQuery.error,
     // Навигация
     handleBackToHome,
+    handleBackToApplications,
   };
 }
 

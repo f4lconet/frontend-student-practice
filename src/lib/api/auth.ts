@@ -21,7 +21,7 @@ export interface AuthResponse {
  * POST /api/auth/login
  */
 export function login(data: LoginRequest) {
-  return apiClient.post<AuthResponse>("/api/auth/login", data, {
+  return apiClient.post<AuthResponse>("/auth/login", data, {
     skipAuth: true,
   });
 }
@@ -31,7 +31,7 @@ export function login(data: LoginRequest) {
  * POST /api/auth/register
  */
 export function register(data: RegisterRequest) {
-  return apiClient.post<AuthResponse>("/api/auth/register", data, {
+  return apiClient.post<AuthResponse>("/auth/register", data, {
     skipAuth: true,
   });
 }
@@ -44,5 +44,5 @@ export function register(data: RegisterRequest) {
  * а штатная ситуация. Не нужно редиректить на /login.
  */
 export function fetchMe() {
-  return apiClient.get<AuthUser>("/api/auth/me", { skipUnauthorizedRedirect: true });
+  return apiClient.get<AuthUser>("/auth/me", { skipUnauthorizedRedirect: true });
 }
