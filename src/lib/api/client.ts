@@ -46,6 +46,7 @@ function buildUrl(
 function buildHeaders(
   config: ApiRequestConfig,
   hasBody: boolean,
+  isFormData?: boolean,
 ): Headers {
   const headers = new Headers(config.headers);
 
@@ -84,13 +85,21 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
   const hasBody = config.body !== undefined;
+  const isFormData = config.body instanceof FormData;
   const url = buildUrl(path, config.params, baseUrl);
 
-  const response = await fetch(url, {
-    ...config,
-    headers: buildHeaders(config, hasBody),
-    body: hasBody ? JSON.stringify(config.body) : undefined,
-  });
+  const fetchInit: RequestInit = {
+    method: config.method,
+    headers: buildHeaders(config, hasBody, isFormData),
+    body: undefined,
+    ...("body" in config ? {} : {}),
+  };
+
+  if (hasBody) {
+    fetchInit.body = isFormData ? (config.body as FormData) : JSON.stringify(config.body);
+  }
+
+  const response = await fetch(url, fetchInit);
 
   const body = await parseResponseBody(response);
 

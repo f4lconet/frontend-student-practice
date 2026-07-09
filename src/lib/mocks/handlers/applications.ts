@@ -75,7 +75,7 @@ function ensureMockApplications(): Application[] {
 
 export const applicationsHandlers: HttpHandler[] = [
   // GET /api/applications
-  http.get("*/api/applications", async ({ request }) => {
+  http.get("*/applications", async () => {
     const users = ensureMockApplications();
 
     return HttpResponse.json<ApplicationsListResponse>(
@@ -85,7 +85,7 @@ export const applicationsHandlers: HttpHandler[] = [
   }),
 
   // GET /api/applications/prefill
-  http.get("*/api/applications/prefill", async () => {
+  http.get("*/applications/prefill", async () => {
     return HttpResponse.json<PrefillDataResponse>(
       { data: MOCK_PREFILL },
       { status: 200 },
