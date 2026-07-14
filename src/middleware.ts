@@ -1,110 +1,39 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-type UserRole = "student" | "admin";
-
-/** Парсинг сессионной куки — в формате `userId|role` */
-function parseSessionCookie(cookieValue: string | null): {
-  userId: string;
-  role: UserRole;
-} | null {
-  if (!cookieValue) return null;
-
-  const parts = cookieValue.split("|");
-  if (parts.length !== 2) return null;
-
-  const [userId, role] = parts;
-
-  if (role !== "student" && role !== "admin") return null;
-
-  return { userId, role };
-}
+type UserRole = "PRACTICANT" | "ADMIN";
 
 /**
- * Middleware для ролевой модели (п. 3 ТЗ).
+ * Временная заглушка для middleware — JWT хранится in-memory на клиенте.
+ * Middleware не может проверить JWT без бэкенд-запроса или httpOnly cookie.
  *
- * Защита маршрутов:
- * - (cabinet) — только для практикантов
- * - (admin) — только для админов
- * - /login, /register — редирект авторизованных в зависимости от роли
+ * Пока что пропускаем все запросы. Серверная проверка авторизации
+ * реализуется через API-клиент на клиенте.
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const sessionCookie = request.cookies.get("auth_session")?.value ?? null;
-  const session = parseSessionCookie(sessionCookie);
 
-  const isAuth = session !== null;
-  const role = session?.role ?? null;
-
-  // --- Проверка защищённых групп ---
-
-  // Группа (cabinet): /applications, /documents, /tasks
+  // Публичные пути — пропускаем всегда
   if (
-    pathname.startsWith("/applications") ||
-    pathname.startsWith("/documents") ||
-    pathname.startsWith("/tasks")
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/survey") ||
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/verify-email" ||
+    pathname === "/forgot-password" ||
+    pathname === "/reset-password"
   ) {
-    if (!isAuth) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    if (role !== "student") {
-      // Админ пытается зайти в кабинет практиканта
-      return NextResponse.redirect(new URL("/cohorts", request.url));
-    }
-
     return NextResponse.next();
   }
 
-  // Группа (admin): /cohorts, /[cohortId]/applications, /[cohortId]/documents, /[cohortId]/tasks, /[cohortId]/settings
-  if (
-    pathname.startsWith("/cohorts") ||
-    /^\/[^/]+\/(?:applications|documents|tasks|settings)/.test(pathname)
-  ) {
-    if (!isAuth) {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    if (role !== "admin") {
-      // Практикант пытается зайти в админку
-      return NextResponse.redirect(new URL("/applications", request.url));
-    }
-
-    return NextResponse.next();
-  }
-
-  // --- Редирект с /login и /register если уже авторизован ---
-  if (pathname === "/login" || pathname === "/register") {
-    if (isAuth) {
-      if (role === "admin") {
-        return NextResponse.redirect(new URL("/cohorts", request.url));
-      }
-      return NextResponse.redirect(new URL("/applications", request.url));
-    }
-
-    return NextResponse.next();
-  }
-
+  // Защищённые маршруты клиентской стороны проверяются через AuthProvider
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    "/applications/:path*",
-    "/documents/:path*",
-    "/tasks/:path*",
-    "/cohorts/:path*",
-    "/:cohortId([^/]+)/applications/:path*",
-    "/:cohortId([^/]+)/documents/:path*",
-    "/:cohortId([^/]+)/tasks/:path*",
-    "/:cohortId([^/]+)/settings/:path*",
-    "/login",
-    "/register",
-    // Публичные пути НЕ должны обрабатываться middleware:
-    // "/survey/:path*" — не включён специально
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

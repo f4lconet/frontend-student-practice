@@ -1,148 +1,130 @@
 import { apiClient } from "./client";
-import type { StudentDocumentData } from "@/entities";
 
-export interface StudentDocumentDataResponse {
-  data: StudentDocumentData;
+export interface StudentDocumentData {
+  id: string;
+  userId: string;
+  cohortId: string;
+  studentFio: string | null;
+  group: string | null;
+  directionCode: string | null;
+  directionName: string | null;
+  programName: string | null;
+  specialty: string | null;
+  practiceTopic: string | null;
+  mainStageTasks: string | null;
+  reviewActivities: string | null;
+  reviewCharacteristic: string | null;
+  reviewEmployed: string | null;
+  reviewNextPractice: string | null;
+  reviewEmploymentOffer: string | null;
+  reviewSuggestions: string | null;
+  reviewGrade: string | null;
+  reportFileUrl: string | null;
+  reportAdminApproved: boolean;
 }
 
-export interface DocumentStatusResponse {
-  iz_ready: boolean;
-  review_ready: boolean;
-  title_page_ready: boolean;
-}
-
-export interface GenerateDocumentResponse {
-  download_url: string;
-}
-
-export interface UploadReportResponse {
-  file_url: string;
+export interface AdminStudentDocumentInfo {
+  userId: string;
+  userName: string;
+  studentFio: string | null;
+  studentDataComplete: boolean;
+  reviewComplete: boolean;
+  reportFileUrl: string | null;
+  reportAdminApproved: boolean;
 }
 
 // ---- Student-facing API ----
 
 /**
- * Получить данные документов текущего пользователя для активной когорты.
- * GET /api/documents/data
+ * Получить или создать документы для заявки.
+ * GET /api/documents/my?applicationId=...&cohortId=...
  */
-export function fetchDocumentData() {
-  return apiClient.get<StudentDocumentDataResponse>("/documents/data");
-}
-
-/**
- * Сохранить данные документов.
- * PATCH /api/documents/data
- */
-export function saveDocumentData(data: Partial<StudentDocumentData>) {
-  return apiClient.patch<StudentDocumentDataResponse>("/documents/data", data);
-}
-
-/**
- * Получить статусы готовности документов (ИЗ, Отзыв, Титульный лист).
- * GET /api/documents/status
- */
-export function fetchDocumentStatus() {
-  return apiClient.get<DocumentStatusResponse>("/documents/status");
-}
-
-/**
- * Сформировать документ (ИЗ, Отзыв или Титульный лист).
- * POST /api/documents/generate
- */
-export function generateDocument(type: "iz" | "review" | "title-page") {
-  return apiClient.post<GenerateDocumentResponse>("/documents/generate", {
-    type,
+export function fetchMyDocuments(applicationId: string, cohortId: string) {
+  return apiClient.get<StudentDocumentData>("/documents/my", {
+    params: { applicationId, cohortId },
   });
 }
 
 /**
- * Загрузить файл отчёта.
- * POST /api/documents/report
+ * Обновить поля документов.
+ * PATCH /api/documents/my?cohortId=...
  */
-export function uploadReport(file: File) {
+export function updateMyDocuments(cohortId: string, data: Partial<StudentDocumentData>) {
+  return apiClient.patch<StudentDocumentData>(`/documents/my?cohortId=${cohortId}`, data);
+}
+
+/**
+ * Загрузить отчёт.
+ * POST /api/documents/my/report?cohortId=...
+ */
+export function uploadReport(cohortId: string, file: File) {
   const formData = new FormData();
   formData.append("file", file);
+  return apiClient.post<{ fileUrl: string }>(
+    `/documents/my/report?cohortId=${cohortId}`,
+    formData,
+    { headers: {} },
+  );
+}
 
-  return apiClient.post<UploadReportResponse>("/documents/report", formData, {
-    headers: {},
+/**
+ * Сгенерировать документ.
+ * GET /api/documents/my/:type/generate?cohortId=...
+ * Ответ — бинарный .docx файл.
+ */
+export function generateDocument(type: "individual-task" | "title-page" | "review", cohortId: string) {
+  return apiClient.get<Blob>(`/documents/my/${type}/generate?cohortId=${cohortId}`, {
+    skipAuth: false,
   });
 }
 
 // ---- Admin API ----
 
-export interface AdminStudentDocumentInfo {
-  user_id: string;
-  user_name: string;
-  student_fio: string | null;
-  /** Все поля student_* заполнены */
-  student_data_complete: boolean;
-  /** Все review_* поля заполнены */
-  review_complete: boolean;
-  report_file_url: string | null;
-  report_admin_approved: boolean;
-}
-
-export interface AdminReviewData {
-  review_activities: string;
-  review_characteristic: string;
-  review_employed: string;
-  review_next_practice: string;
-  review_employment_offer: string;
-  review_suggestions: string;
-  review_grade: string;
-}
-
 /**
- * Получить список практикантов когорты с одобренными заявками и статусами документов.
- * GET /admin/cohorts/:cohortId/students
+ * Получить сводку по документам практикантов когорты.
+ * GET /api/admin/cohorts/:cohortId/documents-overview
  */
-export function fetchAdminStudents(
-  cohortId: string,
-): Promise<AdminStudentDocumentInfo[]> {
+export function fetchAdminDocumentsOverview(cohortId: string): Promise<AdminStudentDocumentInfo[]> {
   return apiClient.get<AdminStudentDocumentInfo[]>(
-    `/admin/cohorts/${cohortId}/students`,
+    `/admin/cohorts/${cohortId}/documents-overview`,
   );
 }
 
 /**
- * Получить данные отзыва по студенту.
- * GET /admin/cohorts/:cohortId/students/:userId/review
+ * Заполнить отзыв (админ).
+ * PATCH /api/admin/documents/:userId/:cohortId/review
+ * Тело запроса: review_* поля (см. IMPORTANT — тело не описано в спецификации)
  */
-export function fetchStudentReview(
-  cohortId: string,
+export function saveAdminReview(
   userId: string,
-): Promise<AdminReviewData> {
-  return apiClient.get<AdminReviewData>(
-    `/admin/cohorts/${cohortId}/students/${userId}/review`,
-  );
-}
-
-/**
- * Сохранить отзыв по студенту.
- * PATCH /admin/cohorts/:cohortId/students/:userId/review
- */
-export function saveStudentReview(
   cohortId: string,
-  userId: string,
-  data: Partial<AdminReviewData>,
-): Promise<AdminReviewData> {
-  return apiClient.patch<AdminReviewData>(
-    `/admin/cohorts/${cohortId}/students/${userId}/review`,
+  data: {
+    reviewActivities?: string;
+    reviewCharacteristic?: string;
+    reviewEmployed?: string;
+    reviewNextPractice?: string;
+    reviewEmploymentOffer?: string;
+    reviewSuggestions?: string;
+    reviewGrade?: string;
+  },
+): Promise<void> {
+  return apiClient.patch<void>(
+    `/admin/documents/${userId}/${cohortId}/review`,
     data,
   );
 }
 
 /**
- * Установить статус report_admin_approved.
- * PATCH /admin/cohorts/:cohortId/students/:userId/report-approve
+ * Подтвердить отчёт (админ).
+ * PATCH /api/admin/documents/:userId/:cohortId/approve-report
  */
-export function approveStudentReport(
-  cohortId: string,
+export function approveReport(
   userId: string,
+  cohortId: string,
   approved: boolean,
-): Promise<{ report_admin_approved: boolean }> {
-  return apiClient.patch<{ report_admin_approved: boolean }>(
-    `/admin/cohorts/${cohortId}/students/${userId}/report-approve`,
+): Promise<void> {
+  return apiClient.patch<void>(
+    `/admin/documents/${userId}/${cohortId}/approve-report`,
     { approved },
   );
 }

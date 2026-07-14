@@ -1,8 +1,7 @@
 import { ApiError, type ApiClientOptions, type ApiRequestConfig } from "./types";
 import { getAccessToken } from "./token-strategy";
 
-const DEFAULT_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
+const DEFAULT_BASE_URL = "/api";
 
 let accessTokenGetter: (() => string | null) | null = null;
 let unauthorizedHandler: (() => void) | null = null;
@@ -112,13 +111,21 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    const message =
-      typeof body === "object" &&
-      body !== null &&
-      "message" in body &&
-      typeof (body as { message: unknown }).message === "string"
-        ? (body as { message: string }).message
-        : `Request failed with status ${response.status}`;
+    let message = `Request failed with status ${response.status}`;
+
+    if (typeof body === "object" && body !== null) {
+      const errBody = body as Record<string, unknown>;
+      // Формат: { error: { message, code } }
+      if (errBody.error && typeof errBody.error === "object") {
+        const err = errBody.error as Record<string, unknown>;
+        if (typeof err.message === "string") {
+          message = err.message;
+        }
+      } else if (typeof errBody.message === "string") {
+        // Формат: { message }
+        message = errBody.message;
+      }
+    }
 
     throw new ApiError(message, response.status, body);
   }

@@ -1,10 +1,11 @@
 export interface TaskCard {
   id: string;
-  user_id: string;
-  cohort_id: string;
+  userId: string;
+  cohortId?: string;
   date: string;
   title: string;
   description: string;
-  artifact_link: string | null;
-  updated_at: string;
+  artifactLink: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }

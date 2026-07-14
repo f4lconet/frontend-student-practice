@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { SurveyFieldInput } from "@/features/survey/survey-field-input";
 import { useSurveyPage } from "@/features/survey/use-survey-page";
 import { buildSurveySchema } from "@/lib/form-utils";
+import type { TestTask } from "@/entities/test-task";
 import { AlertCircle, CheckCircle2, ArrowLeft, FileText, Clock } from "lucide-react";
 
 export default function SurveyPage() {
@@ -32,7 +33,7 @@ export default function SurveyPage() {
     isLoadingTestTask,
     testTaskError,
     handleBackToHome,
-  } = useSurveyPage(slug, { authenticated: false });
+  } = useSurveyPage(slug);
 
   // Динамическая генерация zod-схемы на основе полей
   const surveySchema = fields.length > 0 ? buildSurveySchema(fields) : null;
@@ -120,7 +121,7 @@ export default function SurveyPage() {
             <p className="text-sm text-muted-foreground">
               {isFieldsEmpty
                 ? "Пожалуйста, зайдите позже, когда администратор настроит анкету."
-                : `Срок подачи заявок был с ${formatDate(cohort.application_start)} по ${formatDate(cohort.application_end)}.`}
+                : `Срок подачи заявок был с ${formatDate(cohort.applicationStart)} по ${formatDate(cohort.applicationEnd)}.`}
             </p>
             <Button variant="outline" className="mt-4" onClick={handleBackToHome}>
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -170,10 +171,10 @@ export default function SurveyPage() {
                     Не удалось загрузить тестовое задание. Попробуйте обновить страницу.
                   </AlertDescription>
                 </Alert>
-              ) : testTask && testTask.published_at ? (
+              ) : testTask && testTask.publishedAt ? (
                 <div className="prose prose-sm max-w-none rounded-lg border bg-muted/50 p-4">
                   <div className="mb-2 text-xs text-muted-foreground">
-                    Опубликовано: {formatDate(testTask.published_at)}
+                    Опубликовано: {formatDate(testTask.publishedAt)}
                   </div>
                   <div className="whitespace-pre-wrap">{testTask.content}</div>
                 </div>
@@ -209,7 +210,7 @@ export default function SurveyPage() {
           <CardTitle>Анкета на практику</CardTitle>
           <CardDescription>
             Когорта {cohort.name} &mdash; приём заявок до{" "}
-            {formatDate(cohort.application_end)}
+            {formatDate(cohort.applicationEnd)}
           </CardDescription>
         </CardHeader>
         <CardContent>

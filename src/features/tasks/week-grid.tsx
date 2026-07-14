@@ -135,7 +135,7 @@ export function WeekGrid({
                 // Заполненная ячейка
                 <div className="space-y-1">
                   {dayTasks.map((task) => {
-                    const isOwn = task.user_id === userId;
+                    const isOwn = task.userId === userId;
                     return (
                       <Card
                         key={task.id}
@@ -143,7 +143,7 @@ export function WeekGrid({
                         onClick={() => onCellClick(dateKey, task)}
                       >
                         <p className="truncate text-xs font-medium">{task.title}</p>
-                        {task.artifact_link && (
+                        {task.artifactLink && (
                           <ExternalLink className="mt-0.5 h-3 w-3 text-muted-foreground" />
                         )}
                       </Card>

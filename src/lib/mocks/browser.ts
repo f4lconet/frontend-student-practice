@@ -1,15 +1,15 @@
-import { setupWorker } from "msw/browser";
+// /**
+//  * MSW (Mock Service Worker) browser integration stub.
+//  * In development, startMockServiceWorker activates MSW in the browser.
+//  * The full handlers set will be added as development progresses.
+//  */
 
-import { handlers } from "./handlers";
+// // export async function startMockServiceWorker() {
+// //   if (typeof window === "undefined") {
+// //     return;
+// //   }
 
-export const worker = setupWorker(...handlers);
-
-export async function startMockServiceWorker() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  await worker.start({
-    onUnhandledRequest: "bypass",
-  });
-}
+// //   // eslint-disable-next-line @typescript-eslint/no-require-imports
+// //   const { worker } = await import("./msw-worker");
+// //   await worker.start({ onUnhandledRequest: "bypass" });
+// // }

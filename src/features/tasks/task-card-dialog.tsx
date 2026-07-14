@@ -23,14 +23,13 @@ import type { TaskCard } from "@/entities";
 const taskSchema = z.object({
   title: z.string().min(1, "Введите название задачи"),
   description: z.string().min(1, "Введите описание"),
-  artifact_link: z
+  artifactLink: z
     .string()
+    .optional()
     .refine(
       (val) => !val || /^https?:\/\/.+/i.test(val),
       "Введите корректный URL (начинается с http:// или https://)",
-    )
-    .nullable()
-    .optional(),
+    ),
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -43,7 +42,8 @@ interface TaskCardDialogProps {
   readOnly?: boolean;
   participantName?: string;
   participantRole?: string;
-  onSave: (data: { title: string; description: string; artifact_link: string | null }) => void;
+  onSave: (data: { title: string; description: string; artifactLink: string | null }) => void;
+  onDelete?: (id: string) => void;
 }
 
 export function TaskCardDialog({
@@ -55,17 +55,17 @@ export function TaskCardDialog({
   participantName,
   participantRole,
   onSave,
+  onDelete,
 }: TaskCardDialogProps) {
   const form = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
     defaultValues: {
       title: task?.title ?? "",
       description: task?.description ?? "",
-      artifact_link: task?.artifact_link ?? "",
+      artifactLink: task?.artifactLink ?? "",
     },
   });
 
-  // Сброс формы при открытии/смене задачи
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       form.reset();
@@ -77,7 +77,7 @@ export function TaskCardDialog({
     onSave({
       title: data.title,
       description: data.description,
-      artifact_link: data.artifact_link || null,
+      artifactLink: data.artifactLink || null,
     });
   };
 
@@ -152,21 +152,21 @@ export function TaskCardDialog({
                 id="task-link"
                 type="url"
                 placeholder="https://github.com/..."
-                {...form.register("artifact_link")}
+                {...form.register("artifactLink")}
                 readOnly={readOnly}
                 disabled={readOnly}
               />
-              {form.formState.errors.artifact_link && (
+              {form.formState.errors.artifactLink && (
                 <p className="mt-1 text-xs text-destructive">
-                  {form.formState.errors.artifact_link.message}
+                  {form.formState.errors.artifactLink.message}
                 </p>
               )}
             </div>
 
-            {task && (
+            {task && task.updatedAt && (
               <p className="text-xs text-muted-foreground">
                 Обновлено:{" "}
-                {formatDistanceToNow(new Date(task.updated_at), {
+                {formatDistanceToNow(new Date(task.updatedAt), {
                   addSuffix: true,
                   locale: ru,
                 })}
@@ -183,9 +183,20 @@ export function TaskCardDialog({
               {readOnly ? "Закрыть" : "Отмена"}
             </Button>
             {!readOnly && (
-              <Button type="submit">
-                {task ? "Сохранить" : "Создать"}
-              </Button>
+              <>
+                {task && onDelete && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => onDelete(task.id)}
+                  >
+                    Удалить
+                  </Button>
+                )}
+                <Button type="submit">
+                  {task ? "Сохранить" : "Создать"}
+                </Button>
+              </>
             )}
           </DialogFooter>
         </form>

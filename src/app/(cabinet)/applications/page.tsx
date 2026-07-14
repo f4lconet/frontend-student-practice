@@ -2,15 +2,14 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { fetchApplications, fetchPrefillData } from "@/lib/api/applications";
+import { fetchMyApplications, fetchPrefillData } from "@/lib/api/applications";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, FileText, Plus, Calendar, MessageSquare } from "lucide-react";
-import type { ApplicationStatus } from "@/entities";
+import type { ApplicationStatus, Application } from "@/entities";
 
 const statusLabels: Record<ApplicationStatus, string> = {
   pending: "На рассмотрении",
@@ -34,11 +33,9 @@ function formatDate(dateStr: string): string {
 }
 
 export default function CabinetApplicationsPage() {
-  const router = useRouter();
-
   const applicationsQuery = useQuery({
     queryKey: ["applications"],
-    queryFn: () => fetchApplications(),
+    queryFn: () => fetchMyApplications(),
   });
 
   const prefillQuery = useQuery({
@@ -47,10 +44,9 @@ export default function CabinetApplicationsPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const applications = applicationsQuery.data?.applications ?? [];
+  const applications: Application[] = applicationsQuery.data ?? [];
   const hasPrefill = prefillQuery.data?.data && Object.keys(prefillQuery.data.data).length > 0;
 
-  // ========== Состояние загрузки ==========
   if (applicationsQuery.isLoading) {
     return (
       <div className="space-y-4">
@@ -63,7 +59,6 @@ export default function CabinetApplicationsPage() {
     );
   }
 
-  // ========== Состояние ошибки ==========
   if (applicationsQuery.error) {
     return (
       <Alert variant="destructive">
@@ -76,7 +71,6 @@ export default function CabinetApplicationsPage() {
     );
   }
 
-  // ========== Пустой список заявок ==========
   if (applications.length === 0) {
     return (
       <Card>
@@ -107,7 +101,6 @@ export default function CabinetApplicationsPage() {
     );
   }
 
-  // ========== Список заявок ==========
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -143,11 +136,11 @@ export default function CabinetApplicationsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1">
                   <CardTitle className="text-base">
-                    {app.cohort_name}
+                    {app.cohortName ?? "Когорта"}
                   </CardTitle>
                   <CardDescription className="flex items-center gap-2">
                     <Calendar className="h-3.5 w-3.5" />
-                    {formatDate(app.created_at)}
+                    {formatDate(app.createdAt)}
                   </CardDescription>
                 </div>
                 <Badge variant={statusVariants[app.status]}>
@@ -155,7 +148,7 @@ export default function CabinetApplicationsPage() {
                 </Badge>
               </div>
             </CardHeader>
-            {app.review_comment && (
+            {app.reviewComment && (
               <CardContent>
                 <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-sm">
                   <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -163,7 +156,7 @@ export default function CabinetApplicationsPage() {
                     <p className="text-xs font-medium text-muted-foreground">
                       Комментарий администратора:
                     </p>
-                    <p className="mt-0.5">{app.review_comment}</p>
+                    <p className="mt-0.5">{app.reviewComment}</p>
                   </div>
                 </div>
               </CardContent>

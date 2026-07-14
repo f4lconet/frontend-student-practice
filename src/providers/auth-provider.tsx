@@ -4,8 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { useRouter } from "next/navigation";
 
 import type { AuthUser } from "@/entities";
-import { login as apiLogin, register as apiRegister, fetchMe } from "@/lib/api/auth";
-import { setAccessToken, clearAccessToken, getTokenStrategy } from "@/lib/api/token-strategy";
+import { login as apiLogin, register as apiRegister, fetchMe, type RegisterRequest } from "@/lib/api/auth";
+import { setAccessToken, clearAccessToken, getAccessToken } from "@/lib/api/token-strategy";
 import { setAccessTokenGetter, setUnauthorizedHandler } from "@/lib/api/client";
 
 interface AuthContextValue {
@@ -13,7 +13,7 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<AuthUser>;
-  register: (email: string, password: string) => Promise<AuthUser>;
+  register: (data: RegisterRequest) => Promise<AuthUser>;
   logout: () => void;
 }
 
@@ -37,9 +37,7 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(
-    () => getTokenStrategy() === "httpOnly-cookie",
-  );
+  const [isLoading, setIsLoading] = useState(true);
 
   // Настроить интерцептор 401 → logout + редирект
   useEffect(() => {
@@ -53,36 +51,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Настроить getter токена для API-клиента
   useEffect(() => {
     setAccessTokenGetter(() => {
-      // Для in-memory стратегии токен хранится в token-strategy
-      // Для httpOnly-cookie — токен в куке, не доступен из JS
-      return null; // httpOnly-cookie: токен не доступен из JS
+      return getAccessToken();
     });
   }, []);
 
-  // Загрузить пользователя при монтировании (только для httpOnly-cookie)
+  // При монтировании — пробуем восстановить сессию
   useEffect(() => {
-    if (getTokenStrategy() !== "httpOnly-cookie") {
-      return;
-    }
-
     let cancelled = false;
 
     fetchMe()
       .then((authUser) => {
-        if (!cancelled) {
-          setUser(authUser);
-        }
+        if (!cancelled) setUser(authUser);
       })
       .catch(() => {
-        // Нет сессии — пользователь не авторизован
         if (!cancelled) {
+          clearAccessToken();
           setUser(null);
         }
       })
       .finally(() => {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        if (!cancelled) setIsLoading(false);
       });
 
     return () => {
@@ -94,28 +82,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (email: string, password: string) => {
       const response = await apiLogin({ email, password });
 
-      // Если бэкенд вернул токен в теле ответа — сохраняем
-      if (response.accessToken) {
-        setAccessToken(response.accessToken);
-      }
+      // Сохраняем токен из тела ответа
+      setAccessToken(response.token);
 
-      setUser(response.user);
-      return response.user;
+      // Сразу делаем запрос /auth/me для полной информации о пользователе
+      const authUser = await fetchMe();
+      setUser(authUser);
+      return authUser;
     },
     [],
   );
 
   const register = useCallback(
-    async (email: string, password: string) => {
-      const response = await apiRegister({ email, password });
+    async (data: RegisterRequest) => {
+      const response = await apiRegister(data);
 
-      // Если бэкенд вернул токен в теле ответа — сохраняем
-      if (response.accessToken) {
-        setAccessToken(response.accessToken);
+      // Сохраняем токен из тела ответа
+      if (response.token) {
+        setAccessToken(response.token);
       }
 
-      setUser(response.user);
-      return response.user;
+      // После регистрации пробуем получить профиль
+      try {
+        const authUser = await fetchMe();
+        setUser(authUser);
+        return authUser;
+      } catch {
+        // Если fetchMe не сработал (email не подтверждён), возвращаем базовые данные
+        const basicUser: AuthUser = {
+          id: response.id,
+          email: response.email,
+          role: response.role as AuthUser["role"],
+          isEmailVerified: false,
+          verifiedAt: null,
+          createdAt: "",
+        };
+        setUser(basicUser);
+        return basicUser;
+      }
     },
     [],
   );

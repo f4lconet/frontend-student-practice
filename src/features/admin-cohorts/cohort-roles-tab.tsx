@@ -46,7 +46,7 @@ export function CohortRolesTab({ cohortId }: CohortRolesTabProps) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (roleId: string) => deleteCohortRole(cohortId, roleId),
+    mutationFn: (roleId: string) => deleteCohortRole(roleId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cohort-roles", cohortId] });
     },

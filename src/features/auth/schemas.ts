@@ -10,21 +10,28 @@ export const loginSchema = z.object({
     .email("Некорректный email"),
   password: z
     .string()
-    .min(6, "Минимальная длина пароля — 6 символов"),
+    .min(1, "Введите пароль"),
 });
 
 export const registerSchema = z
   .object({
+    firstName: z
+      .string()
+      .min(1, "Введите имя"),
+    lastName: z
+      .string()
+      .min(1, "Введите фамилию"),
     email: z
       .string()
       .min(1, "Введите email")
       .email("Некорректный email"),
     password: z
       .string()
-      .min(6, "Минимальная длина пароля — 6 символов"),
+      .min(8, "Минимальная длина пароля — 8 символов"),
     confirmPassword: z
       .string()
       .min(1, "Подтвердите пароль"),
+    role: z.enum(["PRACTICANT", "ADMIN"]),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Пароли не совпадают",

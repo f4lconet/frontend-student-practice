@@ -1,8 +1,8 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { fetchTestTask, updateTestTask, publishTestTask } from "@/lib/api/cohorts";
+import { saveTestTask, publishTestTask } from "@/lib/api/cohorts";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -13,12 +13,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Send, Save, CheckCircle2, Clock } from "lucide-react";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
 
 interface TestTaskTabProps {
   cohortId: string;
@@ -26,35 +23,30 @@ interface TestTaskTabProps {
 
 export function TestTaskTab({ cohortId }: TestTaskTabProps) {
   const queryClient = useQueryClient();
-  const [content, setContent] = useState<string | null>(null);
+  const [content, setContent] = useState("");
+  const [isPublished, setIsPublished] = useState(false);
   const [isContentDirty, setIsContentDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  const {
-    data: testTask,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["test-task", cohortId],
-    queryFn: () => fetchTestTask(cohortId),
-  });
+  const [isLoading, setIsLoading] = useState(false);
 
   const saveMutation = useMutation({
     mutationFn: (newContent: string) =>
-      updateTestTask(cohortId, { content: newContent }),
+      saveTestTask(cohortId, newContent),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["test-task", cohortId] });
       setIsContentDirty(false);
       setSaveError(null);
+      setIsLoading(false);
     },
     onError: () => {
       setSaveError("Ошибка при сохранении содержимого");
+      setIsLoading(false);
     },
   });
 
   const publishMutation = useMutation({
     mutationFn: () => publishTestTask(cohortId),
     onSuccess: () => {
+      setIsPublished(true);
       queryClient.invalidateQueries({ queryKey: ["test-task", cohortId] });
     },
     onError: () => {
@@ -63,8 +55,9 @@ export function TestTaskTab({ cohortId }: TestTaskTabProps) {
   });
 
   const handleSave = () => {
-    if (content === null) return;
+    if (content.trim().length === 0) return;
     setSaveError(null);
+    setIsLoading(true);
     saveMutation.mutate(content);
   };
 
@@ -72,49 +65,6 @@ export function TestTaskTab({ cohortId }: TestTaskTabProps) {
     setSaveError(null);
     publishMutation.mutate();
   };
-
-  // Display content: use local state if set, otherwise use server data
-  const displayContent = content ?? testTask?.content ?? "";
-
-  const handleContentChange = (newValue: string) => {
-    setContent(newValue);
-    setIsContentDirty(true);
-  };
-
-  const isPublished =
-    testTask?.published_at !== null && testTask?.published_at !== undefined;
-  const publishedDate = testTask?.published_at
-    ? (() => {
-        try {
-          return format(new Date(testTask.published_at), "d MMM yyyy HH:mm", {
-            locale: ru,
-          });
-        } catch {
-          return testTask.published_at;
-        }
-      })()
-    : null;
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
-        <Skeleton className="h-10 w-32" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Ошибка загрузки тестового задания
-        </AlertDescription>
-      </Alert>
-    );
-  }
 
   return (
     <div className="space-y-4">
@@ -141,10 +91,8 @@ export function TestTaskTab({ cohortId }: TestTaskTabProps) {
         </div>
       </div>
 
-      {publishedDate && (
-        <p className="text-xs text-muted-foreground">
-          Опубликовано: {publishedDate}
-        </p>
+      {isLoading && (
+        <p className="text-xs text-muted-foreground">Загрузка...</p>
       )}
 
       <Card>
@@ -159,8 +107,11 @@ export function TestTaskTab({ cohortId }: TestTaskTabProps) {
             <Label htmlFor="test-task-content">Текст задания</Label>
             <Textarea
               id="test-task-content"
-              value={displayContent}
-              onChange={(e) => handleContentChange(e.target.value)}
+              value={content}
+              onChange={(e) => {
+                setContent(e.target.value);
+                setIsContentDirty(true);
+              }}
               placeholder="## Тестовое задание
 
 Реализуйте ..."
@@ -182,7 +133,7 @@ export function TestTaskTab({ cohortId }: TestTaskTabProps) {
               <Button
                 variant="default"
                 onClick={handlePublish}
-                disabled={publishMutation.isPending}
+                disabled={publishMutation.isPending || !content}
               >
                 <Send className="mr-2 h-4 w-4" />
                 {publishMutation.isPending
@@ -192,7 +143,6 @@ export function TestTaskTab({ cohortId }: TestTaskTabProps) {
             )}
           </div>
 
-          {/* Индикатор того, что есть несохранённые изменения */}
           {isContentDirty && !saveMutation.isPending && (
             <p className="text-xs text-amber-600">
               Есть несохранённые изменения. Нажмите «Сохранить» перед

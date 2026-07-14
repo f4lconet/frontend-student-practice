@@ -28,6 +28,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -40,6 +47,9 @@ export default function RegisterPage() {
       email: "",
       password: "",
       confirmPassword: "",
+      firstName: "",
+      lastName: "",
+      role: "PRACTICANT",
     },
   });
 
@@ -48,17 +58,17 @@ export default function RegisterPage() {
     form.clearErrors();
 
     try {
-      const user = await registerUser(data.email, data.password);
+      const user = await registerUser({
+        email: data.email,
+        password: data.password,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: data.role,
+      });
 
-      toast.success("Регистрация прошла успешно");
+      toast.success("Регистрация прошла успешно! Проверьте почту для подтверждения email.");
 
-      // Редирект по роли
-      if (user.role === "admin") {
-        router.push("/cohorts");
-      } else {
-        router.push("/applications");
-      }
-
+      router.push("/login");
       router.refresh();
     } catch (error) {
       if (error instanceof ApiError) {
@@ -95,6 +105,46 @@ export default function RegisterPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Имя</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Иван"
+                          autoComplete="given-name"
+                          disabled={isPending}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Фамилия</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Иванов"
+                          autoComplete="family-name"
+                          disabled={isPending}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
                 name="email"
@@ -124,7 +174,7 @@ export default function RegisterPage() {
                     <FormControl>
                       <Input
                         type="password"
-                        placeholder="Минимум 6 символов"
+                        placeholder="Минимум 8 символов"
                         autoComplete="new-password"
                         disabled={isPending}
                         {...field}
@@ -150,6 +200,32 @@ export default function RegisterPage() {
                         {...field}
                       />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Роль</FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={isPending}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Выберите роль" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="PRACTICANT">Практикант</SelectItem>
+                        <SelectItem value="ADMIN">Администратор</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

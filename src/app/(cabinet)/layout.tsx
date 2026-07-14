@@ -95,7 +95,7 @@ export default function CabinetLayout({
                     {user.email}
                   </p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    {user.role === "admin" ? "Администратор" : "Практикант"}
+                    {user.role === "ADMIN" ? "Администратор" : "Практикант"}
                   </p>
                 </div>
               </DropdownMenuLabel>

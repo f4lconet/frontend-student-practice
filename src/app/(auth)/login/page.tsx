@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/providers/auth-provider";
 import { loginSchema, type LoginFormData } from "@/features/auth/schemas";
 import { ApiError } from "@/lib/api";
+import { resendVerification } from "@/lib/api/auth";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +34,8 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const [isPending, setIsPending] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [isResending, setIsResending] = useState(false);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -45,6 +48,7 @@ export default function LoginPage() {
   async function onSubmit(data: LoginFormData) {
     setIsPending(true);
     form.clearErrors();
+    setUnverifiedEmail(null);
 
     try {
       const user = await login(data.email, data.password);
@@ -52,7 +56,7 @@ export default function LoginPage() {
       toast.success("Вы успешно вошли в систему");
 
       // Редирект по роли
-      if (user.role === "admin") {
+      if (user.role === "ADMIN") {
         router.push("/cohorts");
       } else {
         router.push("/applications");
@@ -61,10 +65,19 @@ export default function LoginPage() {
       router.refresh();
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.status === 401) {
-          form.setError("password", {
-            message: "Неверный email или пароль",
-          });
+        if (error.status === 401 && error.body && typeof error.body === "object" && "error" in error.body) {
+          const errBody = error.body as { error?: { code?: string } };
+          if (errBody.error?.code === "AUTHENTICATION_ERROR") {
+            // Email не подтверждён
+            setUnverifiedEmail(data.email);
+            form.setError("root", {
+              message: "Пожалуйста, подтвердите email перед входом. Проверьте почту.",
+            });
+          } else {
+            form.setError("password", {
+              message: "Неверный email или пароль",
+            });
+          }
         } else {
           form.setError("root", {
             message: error.message,
@@ -81,6 +94,19 @@ export default function LoginPage() {
       setIsPending(false);
     }
   }
+
+  const handleResendVerification = async () => {
+    if (!unverifiedEmail) return;
+    setIsResending(true);
+    try {
+      await resendVerification(unverifiedEmail);
+      toast.success("Письмо отправлено повторно. Проверьте почту.");
+    } catch {
+      toast.error("Ошибка при отправке письма");
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   return (
     <main className="container mx-auto flex min-h-screen items-center justify-center px-4">
@@ -134,6 +160,24 @@ export default function LoginPage() {
                 )}
               />
 
+              {unverifiedEmail && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                  <p className="mb-2 text-amber-800">
+                    Почта не подтверждена. Проверьте папку «Входящие» или «Спам».
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResendVerification}
+                    disabled={isResending}
+                    className="w-full"
+                  >
+                    {isResending ? "Отправка..." : "Отправить письмо повторно"}
+                  </Button>
+                </div>
+              )}
+
               <Button
                 type="submit"
                 className="w-full"
@@ -144,15 +188,25 @@ export default function LoginPage() {
             </form>
           </Form>
 
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            Нет аккаунта?{" "}
-            <Link
-              href="/register"
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
-              Зарегистрироваться
-            </Link>
-          </p>
+          <div className="mt-4 space-y-2 text-center text-sm text-muted-foreground">
+            <p>
+              Нет аккаунта?{" "}
+              <Link
+                href="/register"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Зарегистрироваться
+              </Link>
+            </p>
+            <p>
+              <Link
+                href="/forgot-password"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Забыли пароль?
+              </Link>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </main>

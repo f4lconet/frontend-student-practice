@@ -1,6 +1,6 @@
 export interface TestTask {
   id: string;
-  cohort_id: string;
+  cohortId: string;
   content: string;
-  published_at: string | null;
+  publishedAt: string | null;
 }

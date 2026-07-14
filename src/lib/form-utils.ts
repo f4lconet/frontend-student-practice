@@ -2,6 +2,15 @@ import { z } from "zod";
 import type { SurveyField } from "@/entities/survey-field";
 
 /**
+ * Разобрать options — в API приходит строка с вариантами, разделёнными запятыми.
+ * Например: "Frontend, Backend, DevOps, Аналитика"
+ */
+function parseOptions(options: string | null): string[] {
+  if (!options) return [];
+  return options.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+/**
  * Динамически генерирует zod-схему валидации на основе массива полей анкеты.
  *
  * Все поля считаются обязательными (строка, minLength: 1).
@@ -18,11 +27,14 @@ export function buildSurveySchema(fields: SurveyField[]) {
       .string()
       .min(1, { message: `Поле «${field.label}» обязательно` });
 
-    if (field.type === "select" && field.options && field.options.length > 0) {
-      fieldSchema = fieldSchema.refine(
-        (val) => field.options!.includes(val),
-        { message: `Выберите один из вариантов: ${field.options.join(", ")}` },
-      );
+    if (field.type === "select" && field.options) {
+      const options = parseOptions(field.options);
+      if (options.length > 0) {
+        fieldSchema = fieldSchema.refine(
+          (val) => options.includes(val),
+          { message: `Выберите один из вариантов: ${options.join(", ")}` },
+        );
+      }
     }
 
     shape[field.id] = fieldSchema;

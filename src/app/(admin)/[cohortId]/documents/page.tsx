@@ -4,12 +4,10 @@ import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
-  fetchAdminStudents,
-  fetchStudentReview,
-  saveStudentReview,
-  approveStudentReport,
+  fetchAdminDocumentsOverview,
+  saveAdminReview,
+  approveReport,
   type AdminStudentDocumentInfo,
-  type AdminReviewData,
 } from "@/lib/api/documents";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -85,35 +83,22 @@ function ReviewDialog({
 }) {
   const queryClient = useQueryClient();
 
-  const [formData, setFormData] = useState<AdminReviewData>({
-    review_activities: "",
-    review_characteristic: "",
-    review_employed: "",
-    review_next_practice: "",
-    review_employment_offer: "",
-    review_suggestions: "",
-    review_grade: "",
-  });
-
-  const { isLoading } = useQuery({
-    queryKey: ["student-review", cohortId, student?.user_id],
-    queryFn: () => fetchStudentReview(cohortId, student!.user_id),
-    enabled: open && !!student,
-    select: (data) => {
-      setFormData(data);
-      return data;
-    },
+  const [formData, setFormData] = useState({
+    reviewActivities: "",
+    reviewCharacteristic: "",
+    reviewEmployed: "",
+    reviewNextPractice: "",
+    reviewEmploymentOffer: "",
+    reviewSuggestions: "",
+    reviewGrade: "",
   });
 
   const saveMutation = useMutation({
-    mutationFn: (data: AdminReviewData) =>
-      saveStudentReview(cohortId, student!.user_id, data),
+    mutationFn: (data: typeof formData) =>
+      saveAdminReview(cohortId, student!.userId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["admin-students", cohortId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["student-review", cohortId, student?.user_id],
       });
       toast.success("Отзыв сохранён");
     },
@@ -126,7 +111,7 @@ function ReviewDialog({
     saveMutation.mutate(formData);
   };
 
-  const updateField = (field: keyof AdminReviewData, value: string) => {
+  const updateField = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -142,152 +127,121 @@ function ReviewDialog({
         <DialogHeader>
           <DialogTitle>Отзыв о практике</DialogTitle>
           <DialogDescription>
-            {student.user_name} — заполните все поля для формирования документа
+            {student.userName} — заполните все поля для формирования документа
             «Отзыв»
           </DialogDescription>
         </DialogHeader>
 
-        {isLoading ? (
-          <div className="space-y-3 py-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
+        <div className="space-y-5 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="reviewActivities">
+              Виды и объём работ, выполненных студентом
+            </Label>
+            <Textarea
+              id="reviewActivities"
+              value={formData.reviewActivities}
+              onChange={(e) => updateField("reviewActivities", e.target.value)}
+              rows={3}
+            />
           </div>
-        ) : (
-          <div className="space-y-5 py-2">
-            {/* review_activities */}
-            <div className="space-y-2">
-              <Label htmlFor="review_activities">
-                Виды и объём работ, выполненных студентом
-              </Label>
-              <Textarea
-                id="review_activities"
-                value={formData.review_activities}
-                onChange={(e) =>
-                  updateField("review_activities", e.target.value)
-                }
-                rows={3}
-              />
-            </div>
 
-            {/* review_characteristic */}
-            <div className="space-y-2">
-              <Label htmlFor="review_characteristic">
-                Характеристика работы студента
-              </Label>
-              <Textarea
-                id="review_characteristic"
-                value={formData.review_characteristic}
-                onChange={(e) =>
-                  updateField("review_characteristic", e.target.value)
-                }
-                rows={3}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="reviewCharacteristic">
+              Характеристика работы студента
+            </Label>
+            <Textarea
+              id="reviewCharacteristic"
+              value={formData.reviewCharacteristic}
+              onChange={(e) => updateField("reviewCharacteristic", e.target.value)}
+              rows={3}
+            />
+          </div>
 
-            {/* review_employed */}
-            <div className="space-y-2">
-              <Label>Трудоустройство</Label>
-              <Select
-                value={formData.review_employed}
-                onValueChange={(v) => {
-                  if (v) updateField("review_employed", v);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="да">
-                    Да — рекомендую к трудоустройству
+          <div className="space-y-2">
+            <Label>Трудоустройство</Label>
+            <Select
+              value={formData.reviewEmployed}
+              onValueChange={(v) => { if (v) updateField("reviewEmployed", v); }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Рекомендован к трудоустройству">Да — рекомендую</SelectItem>
+                <SelectItem value="Не рекомендован">Нет</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="reviewNextPractice">
+              Рекомендации по следующей практике
+            </Label>
+            <Textarea
+              id="reviewNextPractice"
+              value={formData.reviewNextPractice}
+              onChange={(e) => updateField("reviewNextPractice", e.target.value)}
+              rows={2}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Предложение о работе</Label>
+            <Select
+              value={formData.reviewEmploymentOffer}
+              onValueChange={(v) => { if (v) updateField("reviewEmploymentOffer", v); }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Предложена позиция">Да</SelectItem>
+                <SelectItem value="Не предложена">Нет</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="reviewSuggestions">
+              Замечания и предложения
+            </Label>
+            <Textarea
+              id="reviewSuggestions"
+              value={formData.reviewSuggestions}
+              onChange={(e) => updateField("reviewSuggestions", e.target.value)}
+              rows={2}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="reviewGrade">Оценка</Label>
+            <Select
+              value={formData.reviewGrade}
+              onValueChange={(v) => { if (v) updateField("reviewGrade", v); }}
+            >
+              <SelectTrigger id="reviewGrade" className="w-32">
+                <SelectValue placeholder="Оценка" />
+              </SelectTrigger>
+              <SelectContent>
+                {["Отлично", "Хорошо", "Удовлетворительно"].map((grade) => (
+                  <SelectItem key={grade} value={grade}>
+                    {grade}
                   </SelectItem>
-                  <SelectItem value="нет">Нет</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* review_next_practice */}
-            <div className="space-y-2">
-              <Label htmlFor="review_next_practice">
-                Рекомендации по следующей практике
-              </Label>
-              <Textarea
-                id="review_next_practice"
-                value={formData.review_next_practice}
-                onChange={(e) =>
-                  updateField("review_next_practice", e.target.value)
-                }
-                rows={2}
-              />
-            </div>
-
-            {/* review_employment_offer */}
-            <div className="space-y-2">
-              <Label>Предложение о работе</Label>
-              <Select
-                value={formData.review_employment_offer}
-                onValueChange={(v) => {
-                  if (v) updateField("review_employment_offer", v);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="да">Да</SelectItem>
-                  <SelectItem value="нет">Нет</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* review_suggestions */}
-            <div className="space-y-2">
-              <Label htmlFor="review_suggestions">
-                Замечания и предложения
-              </Label>
-              <Textarea
-                id="review_suggestions"
-                value={formData.review_suggestions}
-                onChange={(e) =>
-                  updateField("review_suggestions", e.target.value)
-                }
-                rows={2}
-              />
-            </div>
-
-            {/* review_grade */}
-            <div className="space-y-2">
-              <Label htmlFor="review_grade">Оценка</Label>
-              <Select
-                value={formData.review_grade}
-                onValueChange={(v) => {
-                  if (v) updateField("review_grade", v);
-                }}
-              >
-                <SelectTrigger id="review_grade" className="w-32">
-                  <SelectValue placeholder="Оценка" />
-                </SelectTrigger>
-                <SelectContent>
-                  {["2", "3", "4", "5"].map((grade) => (
-                    <SelectItem key={grade} value={grade}>
-                      {grade}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {isAllFilled && (
-              <Alert>
-                <CheckCircle2 className="h-4 w-4" />
-                <AlertDescription>
-                  Все поля отзыва заполнены. Студент сможет сформировать
-                  документ «Отзыв».
-                </AlertDescription>
-              </Alert>
-            )}
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
+
+          {isAllFilled && (
+            <Alert>
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertDescription>
+                Все поля отзыва заполнены. Студент сможет сформировать
+                документ «Отзыв».
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -318,17 +272,13 @@ function ReportDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const [approved, setApproved] = useState(
-    () => student?.report_admin_approved ?? false,
-  );
+  const [approved, setApproved] = useState(false);
 
   const approveMutation = useMutation({
     mutationFn: (value: boolean) =>
-      approveStudentReport(cohortId, student!.user_id, value),
+      approveReport(student!.userId, cohortId, value),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["admin-students", cohortId],
-      });
+      queryClient.invalidateQueries({ queryKey: ["admin-students", cohortId] });
       toast.success("Статус обновлён");
     },
     onError: () => {
@@ -348,18 +298,17 @@ function ReportDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Отчёт о практике</DialogTitle>
-          <DialogDescription>{student.user_name}</DialogDescription>
+          <DialogDescription>{student.userName}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Просмотр отчёта */}
           <div className="space-y-2">
             <Label>Файл отчёта</Label>
-            {student.report_file_url ? (
+            {student.reportFileUrl ? (
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <a
-                  href={student.report_file_url}
+                  href={student.reportFileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-primary hover:underline flex items-center gap-1"
@@ -375,7 +324,6 @@ function ReportDialog({
             )}
           </div>
 
-          {/* Переключатель допуска к титульному листу */}
           <div className="space-y-2">
             <Label>Допуск к скачиванию титульного листа</Label>
             <div className="flex items-center gap-3">
@@ -408,11 +356,8 @@ export default function AdminDocumentsPage() {
   const params = useParams<{ cohortId: string }>();
   const cohortId = params.cohortId;
 
-  // Dialogs
-  const [reviewStudent, setReviewStudent] =
-    useState<AdminStudentDocumentInfo | null>(null);
-  const [reportStudent, setReportStudent] =
-    useState<AdminStudentDocumentInfo | null>(null);
+  const [reviewStudent, setReviewStudent] = useState<AdminStudentDocumentInfo | null>(null);
+  const [reportStudent, setReportStudent] = useState<AdminStudentDocumentInfo | null>(null);
 
   const {
     data: students,
@@ -420,7 +365,7 @@ export default function AdminDocumentsPage() {
     error,
   } = useQuery({
     queryKey: ["admin-students", cohortId],
-    queryFn: () => fetchAdminStudents(cohortId),
+    queryFn: () => fetchAdminDocumentsOverview(cohortId),
   });
 
   if (isLoading) {
@@ -476,26 +421,21 @@ export default function AdminDocumentsPage() {
             </TableHeader>
             <TableBody>
               {students.map((student) => (
-                <TableRow key={student.user_id}>
+                <TableRow key={student.userId}>
                   <TableCell className="font-medium">
-                    {student.user_name}
+                    {student.userName}
                   </TableCell>
                   <TableCell className="text-center">
-                    <StatusBadge ready={student.student_data_complete} />
+                    <StatusBadge ready={student.studentDataComplete} />
                   </TableCell>
                   <TableCell className="text-center">
-                    <StatusBadge ready={student.review_complete} />
+                    <StatusBadge ready={student.reviewComplete} />
                   </TableCell>
                   <TableCell className="text-center">
-                    <StatusBadge
-                      ready={
-                        student.report_file_url !== null &&
-                        student.report_admin_approved
-                      }
-                    />
+                    <StatusBadge ready={!!(student.reportFileUrl && student.reportAdminApproved)} />
                   </TableCell>
                   <TableCell className="text-center">
-                    {student.report_file_url ? (
+                    {student.reportFileUrl ? (
                       <Badge variant="outline" className="gap-1">
                         <CheckCircle2 className="h-3 w-3 text-green-600" />
                         Загружен
@@ -532,28 +472,23 @@ export default function AdminDocumentsPage() {
         </div>
       )}
 
-      {/* Диалоги */}
       {reviewStudent !== null && (
         <ReviewDialog
-          key={reviewStudent.user_id}
+          key={reviewStudent.userId}
           student={reviewStudent}
           cohortId={cohortId}
           open={true}
-          onOpenChange={(open) => {
-            if (!open) setReviewStudent(null);
-          }}
+          onOpenChange={(open) => { if (!open) setReviewStudent(null); }}
         />
       )}
 
       {reportStudent !== null && (
         <ReportDialog
-          key={reportStudent.user_id}
+          key={reportStudent.userId}
           student={reportStudent}
           cohortId={cohortId}
           open={true}
-          onOpenChange={(open) => {
-            if (!open) setReportStudent(null);
-          }}
+          onOpenChange={(open) => { if (!open) setReportStudent(null); }}
         />
       )}
     </div>

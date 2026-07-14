@@ -5,10 +5,13 @@ export interface User {
   created_at: string;
 }
 
-export type UserRole = "student" | "admin";
+export type UserRole = "PRACTICANT" | "ADMIN";
 
 export interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
+  isEmailVerified: boolean;
+  verifiedAt: string | null;
+  createdAt: string;
 }

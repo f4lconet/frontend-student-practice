@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { startOfWeek, subWeeks, addWeeks, parseISO, format } from "date-fns";
 
-import { fetchAllTasks } from "@/lib/api/tasks";
+import { fetchTasks } from "@/lib/api/tasks";
 import { WeekGrid } from "@/features/tasks/week-grid";
 import { TaskCardDialog } from "@/features/tasks/task-card-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,13 +42,15 @@ export default function AdminTasksPage() {
 
   const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
 
-  // Админ всегда видит всех участников — используем fetchAllTasks
+  // Админ всегда видит всех участников
   const { data, isLoading, error } = useQuery({
-    queryKey: ["admin-tasks", cohortId, weekStartStr, weekEnd],
-    queryFn: () => fetchAllTasks(cohortId, weekStartStr, weekEnd),
+    queryKey: ["admin-tasks", cohortId, weekStartStr],
+    queryFn: () => fetchTasks({ cohortId, weekStart: weekStartStr, all: true }),
+    enabled: !!cohortId,
   });
 
-  const tasks = data?.tasks ?? [];
+  const workdays = data?.workdays ?? [];
+  const tasks = workdays.flatMap((wd: { date: string; tasks: TaskCard[] }) => wd.tasks);
 
   const handlePrevWeek = useCallback(() => {
     setCurrentWeekStart((prev) => subWeeks(prev, 1));
@@ -70,7 +72,7 @@ export default function AdminTasksPage() {
   );
 
   const participantInfo =
-    dialogTask ? PARTICIPANTS[dialogTask.user_id] : undefined;
+    dialogTask ? PARTICIPANTS[dialogTask.userId] : undefined;
 
   if (isLoading) {
     return (

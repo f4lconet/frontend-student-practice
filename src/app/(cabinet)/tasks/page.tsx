@@ -7,31 +7,23 @@ import {
   startOfWeek,
   subWeeks,
   addWeeks,
-  parseISO,
   format,
 } from "date-fns";
-import { ru } from "date-fns/locale";
 
 import { useAuth } from "@/providers/auth-provider";
-import { fetchMyTasks, fetchAllTasks, createTask, updateTask } from "@/lib/api/tasks";
+import { fetchTasks, createTask, updateTask, deleteTask } from "@/lib/api/tasks";
+import { fetchDashboard } from "@/lib/api/dashboard";
 import { WeekGrid } from "@/features/tasks/week-grid";
 import { TaskCardDialog } from "@/features/tasks/task-card-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Users, User } from "lucide-react";
+import { AlertCircle, Users } from "lucide-react";
 import type { TaskCard } from "@/entities";
 
-const MOCK_COHORT_ID = "cohort-2026";
-const PRACTICE_START = parseISO("2026-07-01");
-const PRACTICE_END = parseISO("2026-08-31");
-
-// Информация об участниках (в реальном проекте приходит с бэка)
-const PARTICIPANTS: Record<string, { name: string; role: string }> = {
-  "user-student-1": { name: "Иванов Иван", role: "Frontend" },
-  "user-student-2": { name: "Петров Пётр", role: "Backend" },
-};
+const PRACTICE_START = new Date("2026-06-01");
+const PRACTICE_END = new Date("2026-08-31");
 
 export default function CabinetTasksPage() {
   const queryClient = useQueryClient();
@@ -46,35 +38,32 @@ export default function CabinetTasksPage() {
   const [dialogTask, setDialogTask] = useState<TaskCard | null>(null);
   const [dialogDate, setDialogDate] = useState<string | null>(null);
 
-  const weekEnd = useMemo(() => {
-    const d = new Date(currentWeekStart);
-    d.setDate(d.getDate() + 4); // пн-пт (5 будних дней)
-    return format(d, "yyyy-MM-dd");
-  }, [currentWeekStart]);
-
   const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
 
+  // Получаем cohortId из dashboard
+  const { data: dashboard } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => fetchDashboard(),
+  });
+
+  const cohortId = dashboard?.applications?.[0]?.cohortId ?? "";
+
   // Загрузка задач
-  const myTasksQuery = useQuery({
-    queryKey: ["tasks", "my", weekStartStr, weekEnd],
-    queryFn: () => fetchMyTasks(weekStartStr, weekEnd),
-    enabled: !showAll,
+  const tasksQuery = useQuery({
+    queryKey: ["tasks", cohortId, weekStartStr, showAll],
+    queryFn: () => fetchTasks({ cohortId, weekStart: weekStartStr, all: showAll }),
+    enabled: !!cohortId,
   });
 
-  const allTasksQuery = useQuery({
-    queryKey: ["tasks", "all", weekStartStr, weekEnd],
-    queryFn: () => fetchAllTasks(MOCK_COHORT_ID, weekStartStr, weekEnd),
-    enabled: showAll,
-  });
-
-  const tasks = showAll ? (allTasksQuery.data?.tasks ?? []) : (myTasksQuery.data?.tasks ?? []);
-  const isLoading = showAll ? allTasksQuery.isLoading : myTasksQuery.isLoading;
-  const error = showAll ? allTasksQuery.error : myTasksQuery.error;
+  const workdays = tasksQuery.data?.workdays ?? [];
+  const tasks = workdays.flatMap((wd) => wd.tasks);
+  const isLoading = tasksQuery.isLoading;
+  const error = tasksQuery.error;
 
   // Мутации
   const createMutation = useMutation({
-    mutationFn: (data: { date: string; title: string; description: string; artifact_link: string | null }) =>
-      createTask(data),
+    mutationFn: (data: { date: string; title: string; description?: string; artifactLink?: string }) =>
+      createTask({ cohortId, ...data }),
     onSuccess: () => {
       toast.success("Задача создана");
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -84,12 +73,8 @@ export default function CabinetTasksPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { id: string; title: string; description: string; artifact_link: string | null }) =>
-      updateTask(data.id, {
-        title: data.title,
-        description: data.description,
-        artifact_link: data.artifact_link,
-      }),
+    mutationFn: (data: { id: string; title: string; description?: string; artifactLink?: string }) =>
+      updateTask(data.id, { title: data.title, description: data.description, artifactLink: data.artifactLink }),
     onSuccess: () => {
       toast.success("Задача обновлена");
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -98,7 +83,16 @@ export default function CabinetTasksPage() {
     onError: () => toast.error("Ошибка при обновлении задачи"),
   });
 
-  // Навигация по неделям
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteTask(id),
+    onSuccess: () => {
+      toast.success("Задача удалена");
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      setDialogOpen(false);
+    },
+    onError: () => toast.error("Ошибка при удалении задачи"),
+  });
+
   const handlePrevWeek = useCallback(() => {
     setCurrentWeekStart((prev) => subWeeks(prev, 1));
   }, []);
@@ -107,56 +101,44 @@ export default function CabinetTasksPage() {
     setCurrentWeekStart((prev) => addWeeks(prev, 1));
   }, []);
 
-  // Клик по ячейке
   const handleCellClick = useCallback(
     (date: string, task: TaskCard | null) => {
-      if (showAll && task && task.user_id !== userId) {
-        // Чужая задача — readOnly
-        setDialogTask(task);
-        setDialogDate(date);
-        setDialogOpen(true);
-        return;
-      }
-      if (showAll && !task) {
-        // В режиме "показать всех" нельзя создавать задачи
-        return;
-      }
       setDialogTask(task);
       setDialogDate(date);
       setDialogOpen(true);
     },
-    [showAll, userId],
+    [],
   );
 
-  // Сохранение из диалога
   const handleSave = useCallback(
-    (data: { title: string; description: string; artifact_link: string | null }) => {
+    (data: { title: string; description: string; artifactLink: string | null }) => {
+      // Преобразуем null → undefined для совместимости с API
       if (dialogTask) {
-        updateMutation.mutate({ id: dialogTask.id, ...data });
+        updateMutation.mutate({
+          id: dialogTask.id,
+          ...data,
+          artifactLink: data.artifactLink ?? undefined,
+        });
       } else if (dialogDate) {
-        createMutation.mutate({ date: dialogDate, ...data });
+        createMutation.mutate({
+          date: dialogDate,
+          ...data,
+          artifactLink: data.artifactLink ?? undefined,
+        });
       }
     },
     [dialogTask, dialogDate, createMutation, updateMutation],
   );
 
-  // Чекбокс
-  const handleShowAllChange = useCallback(
-    (checked: boolean) => {
-      setShowAll(checked);
+  const handleDelete = useCallback(
+    (id: string) => {
+      deleteMutation.mutate(id);
     },
-    [],
+    [deleteMutation],
   );
 
   const isDialogReadOnly =
-    showAll && dialogTask !== null && dialogTask.user_id !== userId;
-
-  const participantInfo =
-    dialogTask && dialogTask.user_id !== userId
-      ? PARTICIPANTS[dialogTask.user_id]
-      : undefined;
-
-  // ========== Состояния ==========
+    showAll && dialogTask !== null && dialogTask.userId !== userId;
 
   if (isLoading) {
     return (
@@ -190,16 +172,15 @@ export default function CabinetTasksPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Задачи</h1>
           <p className="text-sm text-muted-foreground">
-            Недельная сетка задач практики
+            {tasksQuery.data?.cohortName ?? "Недельная сетка задач"}
           </p>
         </div>
 
-        {/* Чекбокс "Показать всех" */}
         <div className="flex items-center gap-2">
           <Checkbox
             id="show-all"
             checked={showAll}
-            onCheckedChange={(checked) => handleShowAllChange(checked === true)}
+            onCheckedChange={(checked) => setShowAll(checked === true)}
           />
           <Label htmlFor="show-all" className="cursor-pointer text-sm">
             Показать всех
@@ -236,9 +217,8 @@ export default function CabinetTasksPage() {
         task={dialogTask}
         date={dialogDate}
         readOnly={isDialogReadOnly}
-        participantName={participantInfo?.name}
-        participantRole={participantInfo?.role}
         onSave={handleSave}
+        onDelete={handleDelete}
       />
     </div>
   );

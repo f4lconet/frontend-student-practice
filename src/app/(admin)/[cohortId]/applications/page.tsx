@@ -123,7 +123,7 @@ function SurveyDialog({
         <DialogHeader>
           <DialogTitle>Анкета кандидата</DialogTitle>
           <DialogDescription>
-            {application?.user_name ?? "Загрузка..."}
+            {application?.userName ?? "Загрузка..."}
           </DialogDescription>
         </DialogHeader>
 
@@ -210,7 +210,7 @@ function ApproveDialog({
           ["admin-applications", cohortId],
           previous.map((a) =>
             a.id === application.id
-              ? { ...a, status: "approved" as const, role_id: selectedRoleId }
+              ? { ...a, status: "approved" as const, roleId: selectedRoleId }
               : a,
           ),
         );
@@ -255,7 +255,7 @@ function ApproveDialog({
         <DialogHeader>
           <DialogTitle>Одобрить заявку</DialogTitle>
           <DialogDescription>
-            {application?.user_name ?? "Загрузка..."}
+            {application?.userName ?? "Загрузка..."}
           </DialogDescription>
         </DialogHeader>
 
@@ -339,7 +339,7 @@ function RejectDialog({
               ? {
                   ...a,
                   status: "rejected" as const,
-                  review_comment: comment || null,
+                  reviewComment: comment || null,
                 }
               : a,
           ),
@@ -384,7 +384,7 @@ function RejectDialog({
         <DialogHeader>
           <DialogTitle>Отклонить заявку</DialogTitle>
           <DialogDescription>
-            {application?.user_name ?? "Загрузка..."}
+            {application?.userName ?? "Загрузка..."}
           </DialogDescription>
         </DialogHeader>
 
@@ -452,7 +452,7 @@ export default function AdminApplicationsPage() {
       if (statusFilter !== "all" && app.status !== statusFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const name = app.user_name?.toLowerCase() ?? "";
+        const name = app.userName?.toLowerCase() ?? "";
         if (!name.includes(q)) return false;
       }
       return true;
@@ -550,18 +550,18 @@ export default function AdminApplicationsPage() {
               {filteredApps.map((app) => (
                 <TableRow key={app.id}>
                   <TableCell className="font-medium">
-                    {app.user_name ?? "—"}
+                    {app.userName ?? "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {formatDate(app.created_at)}
+                    {formatDate(app.createdAt)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={statusBadgeVariants[app.status]}>
-                      {statusLabels[app.status]}
+                    <Badge variant={statusBadgeVariants[app.status as ApplicationStatus]}>
+                      {statusLabels[app.status as ApplicationStatus]}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {app.role_id ? "Назначена" : "—"}
+                    {app.roleId ? "Назначена" : "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -595,13 +595,13 @@ export default function AdminApplicationsPage() {
                         </>
                       )}
 
-                      {app.status === "rejected" && app.review_comment && (
+                      {app.status === "rejected" && app.reviewComment && (
                         <Button
                           variant="ghost"
                           size="icon-xs"
                           title="Просмотр комментария"
                           onClick={() => {
-                            toast.info(app.review_comment, {
+                            toast.info(app.reviewComment, {
                               duration: 5000,
                               icon: <MessageSquare className="h-4 w-4" />,
                             });

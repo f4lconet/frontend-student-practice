@@ -5,12 +5,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/providers/auth-provider";
 import {
-  fetchDocumentData,
-  fetchDocumentStatus,
-  saveDocumentData,
+  fetchMyDocuments,
+  updateMyDocuments,
   generateDocument,
   uploadReport,
 } from "@/lib/api/documents";
+import { fetchDashboard } from "@/lib/api/dashboard";
 import type { StudentDocumentData } from "@/entities";
 
 import { Button } from "@/components/ui/button";
@@ -43,14 +43,14 @@ interface FormField {
 }
 
 const FORM_FIELDS: FormField[] = [
-  { key: "student_fio", label: "ФИО", type: "text", placeholder: "Иванов Иван Иванович" },
+  { key: "studentFio", label: "ФИО", type: "text", placeholder: "Иванов Иван Иванович" },
   { key: "group", label: "Группа", type: "text", placeholder: "РИ-390001" },
-  { key: "direction_code", label: "Код направления", type: "text", placeholder: "09.03.04" },
-  { key: "direction_name", label: "Направление", type: "text", placeholder: "Программная инженерия" },
-  { key: "program_name", label: "Наименование программы", type: "text", placeholder: "Разработка и сопровождение ПО" },
+  { key: "directionCode", label: "Код направления", type: "text", placeholder: "09.03.04" },
+  { key: "directionName", label: "Направление", type: "text", placeholder: "Программная инженерия" },
+  { key: "programName", label: "Наименование программы", type: "text", placeholder: "Разработка и сопровождение ПО" },
   { key: "specialty", label: "Специальность", type: "text", placeholder: "Программист" },
-  { key: "practice_topic", label: "Тема практики", type: "text", placeholder: "Тема практики" },
-  { key: "main_stage_tasks", label: "Основные этапы работ", type: "textarea", placeholder: "1. ...\n2. ...\n3. ..." },
+  { key: "practiceTopic", label: "Тема практики", type: "text", placeholder: "Тема практики" },
+  { key: "mainStageTasks", label: "Основные этапы работ", type: "textarea", placeholder: "1. ...\n2. ...\n3. ..." },
 ];
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -170,13 +170,23 @@ export default function CabinetDocumentsPage() {
   const [generatingType, setGeneratingType] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Получение cohortId из dashboard
+  const { data: dashboard } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => fetchDashboard(),
+  });
+  const application = dashboard?.applications?.[0];
+  const applicationId = application?.id ?? "";
+  const cohortId = application?.cohortId ?? "";
+
   // 1. Загрузка данных документов
   const dataQuery = useQuery({
-    queryKey: ["documents", "data"],
-    queryFn: () => fetchDocumentData(),
+    queryKey: ["documents", "data", applicationId, cohortId],
+    queryFn: () => fetchMyDocuments(applicationId, cohortId),
+    enabled: !!applicationId && !!cohortId,
   });
 
-  const docData = dataQuery.data?.data;
+  const docData = dataQuery.data;
 
   // Инициализация формы при загрузке данных
   const initializedRef = useRef(false);
@@ -191,21 +201,27 @@ export default function CabinetDocumentsPage() {
     }
   }, [docData]);
 
-  // 2. Загрузка статусов документов
-  const statusQuery = useQuery({
-    queryKey: ["documents", "status"],
-    queryFn: () => fetchDocumentStatus(),
-  });
+  // 2. Готовность ИЗ: все поля формы заполнены
+  const izRequiredFields: (keyof StudentDocumentData)[] = [
+    "studentFio",
+    "group",
+    "directionCode",
+    "directionName",
+    "programName",
+    "practiceTopic",
+    "mainStageTasks",
+  ];
 
-  const docStatus = statusQuery.data;
+  const areIzFieldsFilled = izRequiredFields.every(
+    (key) => (formValues[key] ?? "").trim().length > 0,
+  );
 
   // 3. Мутация сохранения
   const saveMutation = useMutation({
-    mutationFn: (data: Partial<StudentDocumentData>) => saveDocumentData(data),
+    mutationFn: (data: Partial<StudentDocumentData>) => updateMyDocuments(cohortId, data),
     onSuccess: () => {
       setSaveStatus("saved");
       setDirtyFields(new Set());
-      queryClient.invalidateQueries({ queryKey: ["documents", "status"] });
     },
     onError: () => {
       setSaveStatus("error");
@@ -215,17 +231,20 @@ export default function CabinetDocumentsPage() {
 
   // 4. Мутация формирования документа
   const generateMutation = useMutation({
-    mutationFn: (type: string) => generateDocument(type as "iz" | "review" | "title-page"),
+    mutationFn: (type: string) =>
+      generateDocument(type as "individual-task" | "review" | "title-page", cohortId),
     onSuccess: (data) => {
       toast.success("Документ сформирован!");
-      // Скачиваем файл по полученному URL
-      if (data.download_url) {
+      // Скачиваем файл — ответ это Blob
+      if (data instanceof Blob) {
+        const url = URL.createObjectURL(data);
         const a = document.createElement("a");
-        a.href = data.download_url;
-        a.download = data.download_url.split("/").pop() ?? "document.docx";
+        a.href = url;
+        a.download = "document.docx";
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       }
     },
     onError: () => {
@@ -238,11 +257,11 @@ export default function CabinetDocumentsPage() {
 
   // 5. Мутация загрузки отчёта
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => uploadReport(file),
+    mutationFn: (file: File) => uploadReport(cohortId, file),
     onSuccess: () => {
       toast.success("Отчёт загружен!");
       setIsUploading(false);
-      queryClient.invalidateQueries({ queryKey: ["documents", "status"] });
+      queryClient.invalidateQueries({ queryKey: ["documents", "data"] });
     },
     onError: () => {
       toast.error("Ошибка при загрузке отчёта");
@@ -330,22 +349,9 @@ export default function CabinetDocumentsPage() {
     );
   }
 
-  const izRequiredFields: (keyof StudentDocumentData)[] = [
-    "student_fio",
-    "group",
-    "direction_code",
-    "direction_name",
-    "program_name",
-    "practice_topic",
-    "main_stage_tasks",
-  ];
-
-  const areIzFieldsFilled = izRequiredFields.every(
-    (key) => (formValues[key] ?? "").trim().length > 0,
-  );
-
-  const reportFileName = loadReportFileNameFromStorage();
-  const isReportApproved = docData?.report_admin_approved ?? false;
+  const applicationApproved = application?.status === "approved";
+  const reportFileName = docData?.reportFileUrl ?? null;
+  const isReportApproved = docData?.reportAdminApproved ?? false;
 
   return (
     <div className="space-y-8">
@@ -456,15 +462,15 @@ export default function CabinetDocumentsPage() {
           title="Индивидуальное задание"
           description="Формируется на основе данных студента и одобренной заявки"
           icon={<FileText className="h-5 w-5" />}
-          isReady={docStatus?.iz_ready ?? false}
+          isReady={areIzFieldsFilled && applicationApproved}
           readyLabel="Все поля заполнены"
           notReadyLabel={
-            areIzFieldsFilled
+            !applicationApproved
               ? "Требуется одобренная заявка"
               : "Заполните все поля в форме данных студента"
           }
-          isGenerating={generatingType === "iz"}
-          onGenerate={() => handleGenerate("iz")}
+          isGenerating={generatingType === "individual-task"}
+          onGenerate={() => handleGenerate("individual-task")}
         />
 
         {/* Отзыв */}
@@ -472,7 +478,7 @@ export default function CabinetDocumentsPage() {
           title="Отзыв о практике"
           description="Готовится администратором после проверки"
           icon={<FileText className="h-5 w-5" />}
-          isReady={docStatus?.review_ready ?? false}
+          isReady={!!(docData?.reviewGrade)}
           readyLabel="Отзыв готов"
           notReadyLabel="Отзыв ещё не написан администратором"
           isGenerating={generatingType === "review"}
@@ -484,7 +490,7 @@ export default function CabinetDocumentsPage() {
           title="Титульный лист отчёта"
           description="Доступен после загрузки отчёта и одобрения администратором"
           icon={<FileText className="h-5 w-5" />}
-          isReady={docStatus?.title_page_ready ?? false}
+          isReady={isReportApproved}
           readyLabel="Можно сформировать"
           notReadyLabel={
             reportFileName
@@ -560,19 +566,4 @@ function DocumentCard({
       </CardContent>
     </Card>
   );
-}
-
-/**
- * Вспомогательная функция для получения имени файла отчёта из localStorage
- * (поскольку mock-хендлер сохраняет его туда, а мы не можем использовать
- * React Query для этого, так как fileName не часть StudentDocumentData)
- */
-function loadReportFileNameFromStorage(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const data = localStorage.getItem("mock_doc_report");
-    return data;
-  } catch {
-    return null;
-  }
 }

@@ -77,16 +77,16 @@ function CohortFormDialog({
   const router = useRouter();
   const [formData, setFormData] = useState<CohortFormData>({
     name: cohort?.name ?? "",
-    application_start: cohort?.application_start
-      ? cohort.application_start.slice(0, 10)
+    application_start: cohort?.applicationStart
+      ? cohort.applicationStart.slice(0, 10)
       : "",
-    application_end: cohort?.application_end
-      ? cohort.application_end.slice(0, 10)
+    application_end: cohort?.applicationEnd
+      ? cohort.applicationEnd.slice(0, 10)
       : "",
-    practice_start: cohort?.practice_start
-      ? cohort.practice_start.slice(0, 10)
+    practice_start: cohort?.practiceStart
+      ? cohort.practiceStart.slice(0, 10)
       : "",
-    practice_end: cohort?.practice_end ? cohort.practice_end.slice(0, 10) : "",
+    practice_end: cohort?.practiceEnd ? cohort.practiceEnd.slice(0, 10) : "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -114,10 +114,10 @@ function CohortFormDialog({
     try {
       const payload = {
         name: formData.name,
-        application_start: new Date(formData.application_start).toISOString(),
-        application_end: new Date(formData.application_end).toISOString(),
-        practice_start: new Date(formData.practice_start).toISOString(),
-        practice_end: new Date(formData.practice_end).toISOString(),
+        applicationStart: new Date(formData.application_start).toISOString(),
+        applicationEnd: new Date(formData.application_end).toISOString(),
+        practiceStart: new Date(formData.practice_start).toISOString(),
+        practiceEnd: new Date(formData.practice_end).toISOString(),
       };
 
       if (isEditing) {
@@ -388,17 +388,17 @@ export default function CohortsPage() {
             >
               <CardHeader>
                 <CardTitle className="text-xl">{cohort.name}</CardTitle>
-                <CardDescription>
-                  Приём заявок: {formatDate(cohort.application_start)} —{" "}
-                  {formatDate(cohort.application_end)}
+                  <CardDescription>
+                    Приём заявок: {formatDate(cohort.applicationStart)} —{" "}
+                    {formatDate(cohort.applicationEnd)}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <CalendarIcon className="h-4 w-4" />
                   <span>
-                    Практика: {formatDate(cohort.practice_start)} —{" "}
-                    {formatDate(cohort.practice_end)}
+                    Практика: {formatDate(cohort.practiceStart)} —{" "}
+                    {formatDate(cohort.practiceEnd)}
                   </span>
                 </div>
               </CardContent>

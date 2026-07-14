@@ -4,44 +4,52 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { toast } from "sonner";
-import { fetchSurveyConfig, submitSurvey, fetchTestTask } from "@/lib/api/survey";
+import { fetchPublicActiveCohort, fetchPublicSurveyFields, submitApplication } from "@/lib/api/survey";
 import type { SurveyConfigResponse } from "@/lib/api/survey";
+import type { Application } from "@/entities";
+import type { TestTask } from "@/entities/test-task";
 
 interface UseSurveyPageOptions {
-  /** Prefill-данные из предыдущей заявки (для авторизованных пользователей) */
   prefillData?: Record<string, string> | null;
-  /** Флаг: отправлять ли анкету с авторизацией (true для авторизованных) */
-  authenticated?: boolean;
 }
 
 /**
  * Хук для страницы анкеты /survey/[cohortSlug].
- * Управляет загрузкой конфигурации, отправкой формы и получением тестового задания.
- *
- * Поддерживает:
- * - Публичный режим (без авторизации)
- * - Авторизованный режим (с prefill-данными из предыдущей заявки)
  */
 export function useSurveyPage(slug: string, options?: UseSurveyPageOptions) {
   const queryClient = useQueryClient();
   const router = useRouter();
 
-  // 1. Загрузка конфигурации анкеты
-  const configQuery = useQuery<SurveyConfigResponse>({
-    queryKey: ["survey-config", slug],
-    queryFn: () => fetchSurveyConfig(slug),
+  // 1. Загрузка конфигурации анкеты — получаем активную когорту и её поля
+  const activeCohortQuery = useQuery({
+    queryKey: ["public", "active-cohort"],
+    queryFn: () => fetchPublicActiveCohort(),
     retry: 1,
     staleTime: 5 * 60 * 1000,
   });
 
-  // 2. Отправка анкеты
+  const cohort = activeCohortQuery.data ?? null;
+
+  const fieldsQuery = useQuery({
+    queryKey: ["public", "survey-fields", cohort?.id],
+    queryFn: () => fetchPublicSurveyFields(cohort!.id),
+    enabled: !!cohort,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const fields = fieldsQuery.data ?? [];
+
+  // 2. Отправка заявки
   const submitMutation = useMutation({
-    mutationFn: (data: Record<string, string>) =>
-      submitSurvey(slug, data, {
-        skipAuth: !options?.authenticated,
-      }),
+    mutationFn: (data: Record<string, string>) => {
+      if (!cohort) throw new Error("No active cohort");
+      const answers = Object.entries(data).map(([fieldId, value]) => ({
+        fieldId,
+        value,
+      }));
+      return submitApplication({ cohortId: cohort.id, roleId: "", answers });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["survey-config", slug] });
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       toast.success("Анкета успешно отправлена!");
     },
@@ -51,15 +59,6 @@ export function useSurveyPage(slug: string, options?: UseSurveyPageOptions) {
   });
 
   const isSubmitted = submitMutation.isSuccess;
-
-  // 3. Загрузка тестового задания (только после отправки анкеты)
-  const testTaskQuery = useQuery({
-    queryKey: ["test-task", slug],
-    queryFn: () => fetchTestTask(slug),
-    enabled: isSubmitted,
-    retry: 1,
-    staleTime: 5 * 60 * 1000,
-  });
 
   const handleSubmit = useCallback(
     (data: Record<string, string>) => {
@@ -76,37 +75,24 @@ export function useSurveyPage(slug: string, options?: UseSurveyPageOptions) {
     router.push("/applications");
   }, [router]);
 
-  const fields = configQuery.data?.fields ?? [];
-  const cohortDetails = configQuery.data?.cohort ?? null;
+  const isLoadingConfig = activeCohortQuery.isLoading || fieldsQuery.isLoading;
+  const configError = activeCohortQuery.error ?? fieldsQuery.error;
+  const isFieldsEmpty = fields.length === 0;
 
   return {
-    // Состояние загрузки конфигурации
-    config: configQuery.data,
-    isLoadingConfig: configQuery.isLoading,
-    configError: configQuery.error,
-    // Состояние анкеты
     fields,
-    cohort: cohortDetails,
-    isFieldsEmpty: fields.length === 0,
-    // Prefill-данные
-    prefillData: options?.prefillData ?? null,
-    // Проверка доступности анкеты
-    isApplicationPeriodActive: !cohortDetails
-      ? null
-      : isWithinDates(
-          cohortDetails.application_start,
-          cohortDetails.application_end,
-        ),
-    // Отправка
+    cohort,
+    isLoadingConfig,
+    configError,
+    isFieldsEmpty,
+    isApplicationPeriodActive: !cohort ? null : isWithinDates(cohort.applicationStart, cohort.applicationEnd),
     isSubmitting: submitMutation.isPending,
     isSubmitted,
     submitError: submitMutation.error,
     handleSubmit,
-    // Тестовое задание
-    testTask: testTaskQuery.data,
-    isLoadingTestTask: testTaskQuery.isLoading,
-    testTaskError: testTaskQuery.error,
-    // Навигация
+    testTask: null as TestTask | null,
+    isLoadingTestTask: false,
+    testTaskError: null,
     handleBackToHome,
     handleBackToApplications,
   };

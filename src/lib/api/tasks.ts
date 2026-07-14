@@ -1,53 +1,71 @@
 import { apiClient } from "./client";
 import type { TaskCard } from "@/entities";
 
-export interface TasksListResponse {
-  tasks: TaskCard[];
-}
-
-export interface TaskCardResponse {
-  task: TaskCard;
+export interface WeekGridResponse {
+  weekStart: string;
+  cohortName: string;
+  workdays: {
+    date: string;
+    tasks: TaskCard[];
+  }[];
 }
 
 export interface TaskCardPayload {
+  cohortId: string;
   date: string;
   title: string;
-  description: string;
-  artifact_link: string | null;
+  description?: string;
+  artifactLink?: string;
 }
 
 /**
- * Получить карточки задач текущего пользователя за диапазон дат.
- * GET /api/tasks?start=...&end=...
+ * Получить сетку задач на неделю.
+ * GET /api/tasks?cohortId=...&weekStart=...&all=...
  */
-export function fetchMyTasks(start: string, end: string) {
-  return apiClient.get<TasksListResponse>("/tasks", {
-    params: { start, end },
+export function fetchTasks(params: {
+  cohortId: string;
+  weekStart: string;
+  all?: boolean;
+}) {
+  return apiClient.get<WeekGridResponse>("/tasks", {
+    params: {
+      cohortId: params.cohortId,
+      weekStart: params.weekStart,
+      all: params.all ? "true" : undefined,
+    },
   });
 }
 
 /**
- * Получить карточки задач всех участников когорты за диапазон дат.
- * GET /api/tasks/all?start=...&end=...
- */
-export function fetchAllTasks(cohortId: string, start: string, end: string) {
-  return apiClient.get<TasksListResponse>(`/tasks/all`, {
-    params: { cohortId, start, end },
-  });
-}
-
-/**
- * Создать новую карточку задачи.
+ * Создать новую задачу.
  * POST /api/tasks
  */
 export function createTask(data: TaskCardPayload) {
-  return apiClient.post<TaskCardResponse>("/tasks", data);
+  return apiClient.post<TaskCard>("/tasks", data);
 }
 
 /**
- * Обновить карточку задачи.
+ * Обновить задачу.
  * PATCH /api/tasks/:id
  */
-export function updateTask(id: string, data: Partial<TaskCardPayload>) {
-  return apiClient.patch<TaskCardResponse>(`/tasks/${id}`, data);
+export function updateTask(id: string, data: Partial<Pick<TaskCard, "title" | "description" | "artifactLink">>) {
+  return apiClient.patch<TaskCard>(`/tasks/${id}`, data);
+}
+
+/**
+ * Удалить задачу.
+ * DELETE /api/tasks/:id
+ */
+export function deleteTask(id: string): Promise<void> {
+  return apiClient.delete<void>(`/tasks/${id}`);
+}
+
+// ---- Admin ----
+
+/**
+ * Получить сводку по задачам практикантов когорты.
+ * GET /api/admin/cohorts/:cohortId/tasks-overview
+ */
+export function fetchAdminTasksOverview(cohortId: string) {
+  return apiClient.get<unknown>(`/admin/cohorts/${cohortId}/tasks-overview`);
 }

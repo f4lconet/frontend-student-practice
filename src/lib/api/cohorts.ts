@@ -2,7 +2,6 @@ import { apiClient } from "./client";
 import type { Cohort } from "@/entities/cohort";
 import type { SurveyField } from "@/entities/survey-field";
 import type { CohortRole } from "@/entities/cohort-role";
-import type { TestTask } from "@/entities/test-task";
 
 // ---- Cohorts ----
 
@@ -19,14 +18,26 @@ export function createCohort(data: Omit<Cohort, "id">): Promise<Cohort> {
 }
 
 export function updateCohort(id: string, data: Partial<Cohort>): Promise<Cohort> {
-  return apiClient.patch<Cohort>(`/admin/cohorts/${id}`, data);
+  return apiClient.put<Cohort>(`/admin/cohorts/${id}`, data);
 }
 
 export function deleteCohort(id: string): Promise<void> {
   return apiClient.delete<void>(`/admin/cohorts/${id}`);
 }
 
-// ---- Survey Fields ----
+/** PUBLIC: Получить активную когорту */
+export function fetchActiveCohort(): Promise<Cohort> {
+  return apiClient.get<Cohort>("/public/cohorts/active", { skipAuth: true });
+}
+
+/** PUBLIC: Получить поля анкеты для когорты */
+export function fetchPublicSurveyFields(cohortId: string): Promise<SurveyField[]> {
+  return apiClient.get<SurveyField[]>(`/public/cohorts/${cohortId}/survey`, {
+    skipAuth: true,
+  });
+}
+
+// ---- Survey Fields (admin) ----
 
 export function fetchSurveyFields(cohortId: string): Promise<SurveyField[]> {
   return apiClient.get<SurveyField[]>(`/admin/cohorts/${cohortId}/survey-fields`);
@@ -34,7 +45,7 @@ export function fetchSurveyFields(cohortId: string): Promise<SurveyField[]> {
 
 export function createSurveyField(
   cohortId: string,
-  data: Omit<SurveyField, "id" | "cohort_id" | "order"> & { order?: number },
+  data: { label: string; type: "text" | "select"; order: number; options?: string; isRequired?: boolean },
 ): Promise<SurveyField> {
   return apiClient.post<SurveyField>(`/admin/cohorts/${cohortId}/survey-fields`, data);
 }
@@ -42,7 +53,7 @@ export function createSurveyField(
 export function updateSurveyField(
   cohortId: string,
   fieldId: string,
-  data: Partial<Omit<SurveyField, "id" | "cohort_id">>,
+  data: Partial<{ label: string; type: "text" | "select"; order: number; options: string; isRequired: boolean }>,
 ): Promise<SurveyField> {
   return apiClient.patch<SurveyField>(
     `/admin/cohorts/${cohortId}/survey-fields/${fieldId}`,
@@ -56,16 +67,6 @@ export function deleteSurveyField(cohortId: string, fieldId: string): Promise<vo
   );
 }
 
-export function reorderSurveyFields(
-  cohortId: string,
-  fieldIds: string[],
-): Promise<SurveyField[]> {
-  return apiClient.patch<SurveyField[]>(
-    `/admin/cohorts/${cohortId}/survey-fields/reorder`,
-    { fieldIds },
-  );
-}
-
 // ---- Cohort Roles ----
 
 export function fetchCohortRoles(cohortId: string): Promise<CohortRole[]> {
@@ -74,28 +75,21 @@ export function fetchCohortRoles(cohortId: string): Promise<CohortRole[]> {
 
 export function createCohortRole(
   cohortId: string,
-  data: Omit<CohortRole, "id" | "cohort_id">,
+  data: { name: string },
 ): Promise<CohortRole> {
   return apiClient.post<CohortRole>(`/admin/cohorts/${cohortId}/roles`, data);
 }
 
-export function deleteCohortRole(cohortId: string, roleId: string): Promise<void> {
-  return apiClient.delete<void>(`/admin/cohorts/${cohortId}/roles/${roleId}`);
+export function deleteCohortRole(roleId: string): Promise<void> {
+  return apiClient.delete<void>(`/admin/cohorts/roles/${roleId}`);
 }
 
-// ---- Test Task ----
+// ---- Test Task (admin) ----
 
-export function fetchTestTask(cohortId: string): Promise<TestTask> {
-  return apiClient.get<TestTask>(`/admin/cohorts/${cohortId}/test-task`);
+export function saveTestTask(cohortId: string, content: string): Promise<void> {
+  return apiClient.post(`/admin/cohorts/${cohortId}/test-task`, { content });
 }
 
-export function updateTestTask(
-  cohortId: string,
-  data: Partial<Pick<TestTask, "content">>,
-): Promise<TestTask> {
-  return apiClient.patch<TestTask>(`/admin/cohorts/${cohortId}/test-task`, data);
-}
-
-export function publishTestTask(cohortId: string): Promise<TestTask> {
-  return apiClient.post<TestTask>(`/admin/cohorts/${cohortId}/test-task/publish`);
+export function publishTestTask(cohortId: string): Promise<void> {
+  return apiClient.patch(`/admin/cohorts/${cohortId}/test-task/publish`);
 }

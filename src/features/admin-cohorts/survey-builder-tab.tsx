@@ -7,7 +7,6 @@ import {
   createSurveyField,
   updateSurveyField,
   deleteSurveyField,
-  reorderSurveyFields,
 } from "@/lib/api/cohorts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,9 +72,15 @@ export function SurveyBuilderTab({ cohortId }: SurveyBuilderTabProps) {
     },
   });
 
+  // Переупорядочивание через удаление и создание — временное решение,
+  // пока бэкенд не поддерживает PATCH reorder
   const reorderMutation = useMutation({
-    mutationFn: (fieldIds: string[]) =>
-      reorderSurveyFields(cohortId, fieldIds),
+    mutationFn: async (fieldIds: string[]) => {
+      if (!fields) return;
+      for (let i = 0; i < fieldIds.length; i++) {
+        await updateSurveyField(cohortId, fieldIds[i], { order: i });
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["survey-fields", cohortId] });
     },
@@ -182,9 +187,9 @@ export function SurveyBuilderTab({ cohortId }: SurveyBuilderTabProps) {
                     <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                       {field.type === "text" ? "Текст" : "Список"}
                     </span>
-                    {field.options && field.options.length > 0 && (
+                    {field.options && (
                       <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                        ({field.options.join(", ")})
+                        ({field.options})
                       </span>
                     )}
                   </div>
@@ -245,7 +250,7 @@ function FieldFormDialog({
   const [label, setLabel] = useState(field?.label ?? "");
   const [type, setType] = useState<SurveyFieldType>(field?.type ?? "text");
   const [optionsText, setOptionsText] = useState(
-    field?.options?.join("\n") ?? "",
+    field?.options ?? "",
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -259,15 +264,16 @@ function FieldFormDialog({
       return;
     }
 
-    const options =
+    const optionsString =
       type === "select"
         ? optionsText
             .split("\n")
             .map((s) => s.trim())
             .filter(Boolean)
-        : null;
+            .join(",")
+        : undefined;
 
-    if (type === "select" && (!options || options.length === 0)) {
+    if (type === "select" && (!optionsString || optionsString.length === 0)) {
       setError("Для поля типа «Список» укажите хотя бы один вариант");
       return;
     }
@@ -278,13 +284,17 @@ function FieldFormDialog({
         await updateSurveyField(cohortId, field.id, {
           label: label.trim(),
           type,
-          options,
+          options: optionsString,
         });
       } else {
+        // Получаем текущий order для нового поля
+        const currentFields = queryClient.getQueryData<SurveyField[]>(["survey-fields", cohortId]);
+        const order = (currentFields?.length ?? 0) + 1;
         await createSurveyField(cohortId, {
           label: label.trim(),
           type,
-          options,
+          options: optionsString,
+          order,
         });
       }
       queryClient.invalidateQueries({

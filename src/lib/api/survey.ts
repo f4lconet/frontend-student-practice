@@ -1,52 +1,47 @@
 import { apiClient } from "./client";
 import type { Cohort } from "@/entities/cohort";
 import type { SurveyField } from "@/entities/survey-field";
-import type { TestTask } from "@/entities/test-task";
-import type { ApplicationStatus } from "@/entities";
+import type { Application } from "@/entities";
 
 export interface SurveyConfigResponse {
   cohort: Cohort;
   fields: SurveyField[];
 }
 
-export interface SurveySubmitResponse {
-  message: string;
-  application_id?: string;
+export interface TestTaskResponse {
+  published: boolean;
+  content?: string;
+}
+
+export interface SubmitApplicationRequest {
+  cohortId: string;
+  roleId: string;
+  answers: { fieldId: string; value: string }[];
 }
 
 /**
- * Получить конфигурацию анкеты для когорты по её slug.
- * GET /api/cohorts/:slug/survey
+ * Получить активную когорту (публичный эндпоинт).
+ * GET /api/public/cohorts/active
  */
-export function fetchSurveyConfig(slug: string) {
-  return apiClient.get<SurveyConfigResponse>(`/cohorts/${slug}/survey`);
+export function fetchPublicActiveCohort() {
+  return apiClient.get<Cohort>("/public/cohorts/active", { skipAuth: true });
 }
 
 /**
- * Отправить анкету.
- * POST /api/cohorts/:slug/survey
- *
- * Если не передан skipAuth: true — будет авторизованный запрос (для авторизованных пользователей).
- * Для публичной анкеты (без регистрации) — передаём skipAuth: true.
+ * Получить поля анкеты для активной когорты (публичный эндпоинт).
+ * GET /api/public/cohorts/:id/survey
  */
-export function submitSurvey(
-  slug: string,
-  data: Record<string, string>,
-  options?: { skipAuth?: boolean },
-) {
-  return apiClient.post<SurveySubmitResponse>(
-    `/cohorts/${slug}/survey`,
-    data,
-    { skipAuth: options?.skipAuth ?? false },
-  );
-}
-
-/**
- * Получить тестовое задание когорты.
- * GET /api/cohorts/:slug/test-task
- */
-export function fetchTestTask(slug: string) {
-  return apiClient.get<TestTask>(`/cohorts/${slug}/test-task`, {
+export function fetchPublicSurveyFields(cohortId: string) {
+  return apiClient.get<SurveyField[]>(`/public/cohorts/${cohortId}/survey`, {
     skipAuth: true,
   });
+}
+
+/**
+ * Подать заявку.
+ * POST /api/applications
+ * Тело: { cohortId, answers: [{ fieldId, value }] }
+ */
+export function submitApplication(data: SubmitApplicationRequest) {
+  return apiClient.post<Application>("/applications", data);
 }

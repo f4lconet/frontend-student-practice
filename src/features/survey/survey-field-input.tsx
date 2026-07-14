@@ -26,6 +26,15 @@ interface SurveyFieldInputProps {
 }
 
 /**
+ * Разобрать options — в API приходит строка с вариантами, разделёнными запятыми.
+ * Например: "Frontend, Backend, DevOps, Аналитика"
+ */
+function parseOptions(options: string | null): string[] {
+  if (!options) return [];
+  return options.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+/**
  * Рендерит одно поле анкеты в зависимости от его типа.
  * text — Input или Textarea (по label-подсказке, если поле про "себя" — Textarea).
  * select — Select или RadioGroup (< 4 вариантов — RadioGroup, иначе Select).
@@ -37,7 +46,8 @@ export function SurveyFieldInput({ field, form }: SurveyFieldInputProps) {
       field.label.toLowerCase().includes("себе") ||
       field.label.toLowerCase().includes("стек"));
 
-  const useRadio = field.type === "select" && field.options && field.options.length <= 4;
+  const options = parseOptions(field.options);
+  const useRadio = field.type === "select" && options.length <= 4;
 
   return (
     <FormField
@@ -47,14 +57,14 @@ export function SurveyFieldInput({ field, form }: SurveyFieldInputProps) {
         <FormItem>
           <FormLabel>{field.label}</FormLabel>
           <FormControl>
-            {field.type === "select" && field.options ? (
+            {field.type === "select" && options.length > 0 ? (
               useRadio ? (
                 <RadioGroup
                   value={formField.value}
                   onValueChange={formField.onChange}
                   className="flex flex-col gap-2"
                 >
-                  {field.options.map((option) => (
+                  {options.map((option) => (
                     <div key={option} className="flex items-center gap-2">
                       <RadioGroupItem value={option} id={`${field.id}-${option}`} />
                       <label htmlFor={`${field.id}-${option}`} className="text-sm">
@@ -72,7 +82,7 @@ export function SurveyFieldInput({ field, form }: SurveyFieldInputProps) {
                     <SelectValue placeholder="Выберите..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {field.options.map((option) => (
+                    {options.map((option) => (
                       <SelectItem key={option} value={option}>
                         {option}
                       </SelectItem>
