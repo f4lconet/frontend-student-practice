@@ -29,17 +29,21 @@ function buildUrl(
   params?: ApiRequestConfig["params"],
   baseUrl = DEFAULT_BASE_URL,
 ): string {
-  const url = new URL(path.startsWith("http") ? path : `${baseUrl}${path}`);
+  const isAbsolute = path.startsWith("http");
+  let url = isAbsolute ? path : `${baseUrl}${path}`;
 
   if (params) {
+    const search = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {
-        url.searchParams.set(key, String(value));
+        search.set(key, String(value));
       }
     }
+    const qs = search.toString();
+    if (qs) url += (url.includes("?") ? "&" : "?") + qs;
   }
 
-  return url.toString();
+  return url;
 }
 
 function buildHeaders(

@@ -39,8 +39,9 @@ export function fetchPublicSurveyFields(cohortId: string): Promise<SurveyField[]
 
 // ---- Survey Fields (admin) ----
 
+/** Получить поля анкеты. Используем публичный эндпоинт, так как админского GET-эндпоинта для списка полей нет. */
 export function fetchSurveyFields(cohortId: string): Promise<SurveyField[]> {
-  return apiClient.get<SurveyField[]>(`/admin/cohorts/${cohortId}/survey-fields`);
+  return apiClient.get<SurveyField[]>(`/public/cohorts/${cohortId}/survey`);
 }
 
 export function createSurveyField(

@@ -6,22 +6,13 @@ import { useParams } from "next/navigation";
 import { startOfWeek, subWeeks, addWeeks, parseISO, format } from "date-fns";
 
 import { fetchTasks } from "@/lib/api/tasks";
+import { fetchCohort } from "@/lib/api/cohorts";
 import { WeekGrid } from "@/features/tasks/week-grid";
 import { TaskCardDialog } from "@/features/tasks/task-card-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Users } from "lucide-react";
 import type { TaskCard } from "@/entities";
-
-const PRACTICE_START = parseISO("2026-07-01");
-const PRACTICE_END = parseISO("2026-08-31");
-
-// Информация об участниках
-const PARTICIPANTS: Record<string, { name: string; role: string }> = {
-  "user-student-1": { name: "Иванов Иван", role: "Frontend" },
-  "user-student-2": { name: "Петров Пётр", role: "Backend" },
-  "user-student-3": { name: "Сидорова Анна", role: "Аналитик" },
-};
 
 export default function AdminTasksPage() {
   const params = useParams<{ cohortId: string }>();
@@ -41,6 +32,16 @@ export default function AdminTasksPage() {
   }, [currentWeekStart]);
 
   const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
+
+  // Загружаем данные когорты, чтобы получить реальные даты практики
+  const { data: cohort } = useQuery({
+    queryKey: ["cohort", cohortId],
+    queryFn: () => fetchCohort(cohortId),
+    enabled: !!cohortId,
+  });
+
+  const practiceStart = cohort ? parseISO(cohort.practiceStart) : new Date();
+  const practiceEnd = cohort ? parseISO(cohort.practiceEnd) : new Date();
 
   // Админ всегда видит всех участников
   const { data, isLoading, error } = useQuery({
@@ -70,9 +71,6 @@ export default function AdminTasksPage() {
     },
     [],
   );
-
-  const participantInfo =
-    dialogTask ? PARTICIPANTS[dialogTask.userId] : undefined;
 
   if (isLoading) {
     return (
@@ -118,8 +116,8 @@ export default function AdminTasksPage() {
 
       <WeekGrid
         currentWeekStart={currentWeekStart}
-        practiceStart={PRACTICE_START}
-        practiceEnd={PRACTICE_END}
+        practiceStart={practiceStart}
+        practiceEnd={practiceEnd}
         tasks={tasks}
         userId=""
         showAll={true}
@@ -134,8 +132,6 @@ export default function AdminTasksPage() {
         task={dialogTask}
         date={dialogDate}
         readOnly={true}
-        participantName={participantInfo?.name}
-        participantRole={participantInfo?.role}
         onSave={() => {}}
       />
     </div>

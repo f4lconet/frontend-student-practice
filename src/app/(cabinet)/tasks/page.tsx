@@ -13,6 +13,7 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { fetchTasks, createTask, updateTask, deleteTask } from "@/lib/api/tasks";
 import { fetchDashboard } from "@/lib/api/dashboard";
+import { fetchCohort } from "@/lib/api/cohorts";
 import { WeekGrid } from "@/features/tasks/week-grid";
 import { TaskCardDialog } from "@/features/tasks/task-card-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,9 +22,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, Users } from "lucide-react";
 import type { TaskCard } from "@/entities";
-
-const PRACTICE_START = new Date("2026-06-01");
-const PRACTICE_END = new Date("2026-08-31");
 
 export default function CabinetTasksPage() {
   const queryClient = useQueryClient();
@@ -47,6 +45,16 @@ export default function CabinetTasksPage() {
   });
 
   const cohortId = dashboard?.applications?.[0]?.cohortId ?? "";
+
+  // Загружаем данные когорты, чтобы получить реальные даты практики
+  const { data: cohort } = useQuery({
+    queryKey: ["cohort", cohortId],
+    queryFn: () => fetchCohort(cohortId),
+    enabled: !!cohortId,
+  });
+
+  const practiceStart = cohort ? new Date(cohort.practiceStart) : new Date();
+  const practiceEnd = cohort ? new Date(cohort.practiceEnd) : new Date();
 
   // Загрузка задач
   const tasksQuery = useQuery({
@@ -201,8 +209,8 @@ export default function CabinetTasksPage() {
 
       <WeekGrid
         currentWeekStart={currentWeekStart}
-        practiceStart={PRACTICE_START}
-        practiceEnd={PRACTICE_END}
+        practiceStart={practiceStart}
+        practiceEnd={practiceEnd}
         tasks={tasks}
         userId={userId}
         showAll={showAll}

@@ -11,6 +11,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { registerSchema, type RegisterFormData } from "@/features/auth/schemas";
 import { ApiError } from "@/lib/api";
 
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,13 +29,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -63,7 +57,7 @@ export default function RegisterPage() {
         password: data.password,
         firstName: data.firstName,
         lastName: data.lastName,
-        role: data.role,
+        role: "PRACTICANT",
       });
 
       toast.success("Регистрация прошла успешно! Проверьте почту для подтверждения email.");
@@ -94,7 +88,18 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="container mx-auto flex min-h-screen items-center justify-center px-4">
+    <main className="container mx-auto flex min-h-screen flex-col items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mb-2"
+          onClick={() => router.back()}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Назад
+        </Button>
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Регистрация</CardTitle>
@@ -200,32 +205,6 @@ export default function RegisterPage() {
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Роль</FormLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      disabled={isPending}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Выберите роль" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="PRACTICANT">Практикант</SelectItem>
-                        <SelectItem value="ADMIN">Администратор</SelectItem>
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

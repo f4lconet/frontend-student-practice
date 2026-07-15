@@ -8,6 +8,7 @@ import { fetchPublicActiveCohort, fetchPublicSurveyFields, submitApplication } f
 import type { SurveyConfigResponse } from "@/lib/api/survey";
 import type { Application } from "@/entities";
 import type { TestTask } from "@/entities/test-task";
+import type { Cohort } from "@/entities/cohort";
 
 interface UseSurveyPageOptions {
   prefillData?: Record<string, string> | null;
@@ -20,16 +21,17 @@ export function useSurveyPage(slug: string, options?: UseSurveyPageOptions) {
   const queryClient = useQueryClient();
   const router = useRouter();
 
-  // 1. Загрузка конфигурации анкеты — получаем активную когорту и её поля
+  // 1. Получаем активную когорту по публичному эндпоинту
   const activeCohortQuery = useQuery({
     queryKey: ["public", "active-cohort"],
-    queryFn: () => fetchPublicActiveCohort(),
-    retry: 1,
+    queryFn: () => fetchPublicActiveCohort().catch(() => null),
+    retry: 0,
     staleTime: 5 * 60 * 1000,
   });
 
-  const cohort = activeCohortQuery.data ?? null;
+  const cohort: Cohort | null = activeCohortQuery.data ?? null;
 
+  // 2. Загружаем поля анкеты для этой когорты
   const fieldsQuery = useQuery({
     queryKey: ["public", "survey-fields", cohort?.id],
     queryFn: () => fetchPublicSurveyFields(cohort!.id),
@@ -39,10 +41,10 @@ export function useSurveyPage(slug: string, options?: UseSurveyPageOptions) {
 
   const fields = fieldsQuery.data ?? [];
 
-  // 2. Отправка заявки
+  // 3. Отправка заявки
   const submitMutation = useMutation({
     mutationFn: (data: Record<string, string>) => {
-      if (!cohort) throw new Error("No active cohort");
+      if (!cohort) throw new Error("Нет активной когорты");
       const answers = Object.entries(data).map(([fieldId, value]) => ({
         fieldId,
         value,

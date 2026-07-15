@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { fetchMyApplications, fetchPrefillData } from "@/lib/api/applications";
+import { fetchPublicActiveCohort } from "@/lib/api/survey";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +48,15 @@ export default function CabinetApplicationsPage() {
   const applications: Application[] = applicationsQuery.data ?? [];
   const hasPrefill = prefillQuery.data?.data && Object.keys(prefillQuery.data.data).length > 0;
 
+  // Получаем активную когорту для ссылки "Подать заявку"
+  const { data: activeCohort } = useQuery({
+    queryKey: ["public", "active-cohort"],
+    queryFn: () => fetchPublicActiveCohort().catch(() => null),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const surveyHref = activeCohort ? `/survey/${activeCohort.name}` : "/survey/current";
+
   if (applicationsQuery.isLoading) {
     return (
       <div className="space-y-4">
@@ -90,7 +100,7 @@ export default function CabinetApplicationsPage() {
             Заявки принимаются в период приёма активной когорты.
           </p>
           <Button
-            render={<Link href="/survey/2026" />}
+            render={<Link href={surveyHref} />}
             nativeButton={false}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -111,7 +121,7 @@ export default function CabinetApplicationsPage() {
           </p>
         </div>
         <Button
-          render={<Link href="/survey/2026" />}
+          render={<Link href={surveyHref} />}
           nativeButton={false}
         >
           <Plus className="mr-2 h-4 w-4" />

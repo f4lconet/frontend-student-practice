@@ -64,18 +64,8 @@ const cohortFormSchema = z
 
 type CohortFormData = z.infer<typeof cohortFormSchema>;
 
-function CohortFormDialog({
-  open,
-  onOpenChange,
-  cohort,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  cohort?: Cohort;
-}) {
-  const queryClient = useQueryClient();
-  const router = useRouter();
-  const [formData, setFormData] = useState<CohortFormData>({
+function initFormData(cohort?: Cohort): CohortFormData {
+  return {
     name: cohort?.name ?? "",
     application_start: cohort?.applicationStart
       ? cohort.applicationStart.slice(0, 10)
@@ -87,11 +77,51 @@ function CohortFormDialog({
       ? cohort.practiceStart.slice(0, 10)
       : "",
     practice_end: cohort?.practiceEnd ? cohort.practiceEnd.slice(0, 10) : "",
-  });
+  };
+}
+
+function CohortFormDialog({
+  open,
+  onOpenChange,
+  cohort,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  cohort?: Cohort;
+}) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const isEditing = !!cohort;
+
+  // Используем cohort.id как key для принудительного пересоздания компонента
+  // при смене редактируемой когорты, что гарантирует актуальные данные в форме
+  return (
+    <Dialog key={cohort?.id ?? "new"} open={open} onOpenChange={onOpenChange}>
+      <CohortFormContent
+        cohort={cohort}
+        onOpenChange={onOpenChange}
+        isEditing={isEditing}
+      />
+    </Dialog>
+  );
+}
+
+function CohortFormContent({
+  cohort,
+  onOpenChange,
+  isEditing,
+}: {
+  cohort?: Cohort;
+  onOpenChange: (open: boolean) => void;
+  isEditing: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const [formData, setFormData] = useState<CohortFormData>(
+    initFormData(cohort),
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const isEditing = !!cohort;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,7 +150,7 @@ function CohortFormDialog({
         practiceEnd: new Date(formData.practice_end).toISOString(),
       };
 
-      if (isEditing) {
+      if (isEditing && cohort) {
         await updateCohort(cohort.id, payload);
       } else {
         await createCohort(payload);
@@ -147,137 +177,135 @@ function CohortFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>
-            {isEditing ? "Редактировать когорту" : "Создать когорту"}
-          </DialogTitle>
-          <DialogDescription>
-            Заполните основные параметры когорты. Даты окончания не могут быть
-            раньше дат начала.
-          </DialogDescription>
-        </DialogHeader>
+    <DialogContent className="sm:max-w-[500px]">
+      <DialogHeader>
+        <DialogTitle>
+          {isEditing ? "Редактировать когорту" : "Создать когорту"}
+        </DialogTitle>
+        <DialogDescription>
+          Заполните основные параметры когорты. Даты окончания не могут быть
+          раньше дат начала.
+        </DialogDescription>
+      </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">
+            Название / год <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            id="name"
+            value={formData.name}
+            onChange={(e) => updateField("name", e.target.value)}
+            placeholder="2026"
+          />
+          {errors.name && (
+            <p className="text-sm text-destructive">{errors.name}</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="name">
-              Название / год <span className="text-destructive">*</span>
+            <Label htmlFor="application_start">
+              Начало приёма заявок <span className="text-destructive">*</span>
             </Label>
             <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => updateField("name", e.target.value)}
-              placeholder="2026"
+              id="application_start"
+              type="date"
+              value={formData.application_start}
+              onChange={(e) =>
+                updateField("application_start", e.target.value)
+              }
             />
-            {errors.name && (
-              <p className="text-sm text-destructive">{errors.name}</p>
+            {errors.application_start && (
+              <p className="text-sm text-destructive">
+                {errors.application_start}
+              </p>
             )}
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="application_start">
-                Начало приёма заявок <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="application_start"
-                type="date"
-                value={formData.application_start}
-                onChange={(e) =>
-                  updateField("application_start", e.target.value)
-                }
-              />
-              {errors.application_start && (
-                <p className="text-sm text-destructive">
-                  {errors.application_start}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="application_end">
-                Окончание приёма заявок{" "}
-                <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="application_end"
-                type="date"
-                value={formData.application_end}
-                onChange={(e) =>
-                  updateField("application_end", e.target.value)
-                }
-              />
-              {errors.application_end && (
-                <p className="text-sm text-destructive">
-                  {errors.application_end}
-                </p>
-              )}
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="application_end">
+              Окончание приёма заявок{" "}
+              <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="application_end"
+              type="date"
+              value={formData.application_end}
+              onChange={(e) =>
+                updateField("application_end", e.target.value)
+              }
+            />
+            {errors.application_end && (
+              <p className="text-sm text-destructive">
+                {errors.application_end}
+              </p>
+            )}
           </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="practice_start">
-                Начало практики <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="practice_start"
-                type="date"
-                value={formData.practice_start}
-                onChange={(e) =>
-                  updateField("practice_start", e.target.value)
-                }
-              />
-              {errors.practice_start && (
-                <p className="text-sm text-destructive">
-                  {errors.practice_start}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="practice_end">
-                Окончание практики <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="practice_end"
-                type="date"
-                value={formData.practice_end}
-                onChange={(e) => updateField("practice_end", e.target.value)}
-              />
-              {errors.practice_end && (
-                <p className="text-sm text-destructive">
-                  {errors.practice_end}
-                </p>
-              )}
-            </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="practice_start">
+              Начало практики <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="practice_start"
+              type="date"
+              value={formData.practice_start}
+              onChange={(e) =>
+                updateField("practice_start", e.target.value)
+              }
+            />
+            {errors.practice_start && (
+              <p className="text-sm text-destructive">
+                {errors.practice_start}
+              </p>
+            )}
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="practice_end">
+              Окончание практики <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="practice_end"
+              type="date"
+              value={formData.practice_end}
+              onChange={(e) => updateField("practice_end", e.target.value)}
+            />
+            {errors.practice_end && (
+              <p className="text-sm text-destructive">
+                {errors.practice_end}
+              </p>
+            )}
+          </div>
+        </div>
 
-          {errors.form && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{errors.form}</AlertDescription>
-            </Alert>
-          )}
+        {errors.form && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{errors.form}</AlertDescription>
+          </Alert>
+        )}
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              Отмена
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting
-                ? "Сохранение..."
-                : isEditing
-                  ? "Сохранить"
-                  : "Создать"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Отмена
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
+              ? "Сохранение..."
+              : isEditing
+                ? "Сохранить"
+                : "Создать"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 }
 

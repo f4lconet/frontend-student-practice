@@ -82,21 +82,31 @@ export default function SurveyPage() {
     );
   }
 
-  // ========== Когорта не найдена (404) ==========
+  // ========== Когорта не найдена / нет активного приёма ==========
   if (!cohort) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-12">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Когорта не найдена</AlertTitle>
-          <AlertDescription>
-            Когорта &laquo;{slug}&raquo; не найдена. Проверьте правильность ссылки.
-          </AlertDescription>
-        </Alert>
-        <Button variant="outline" className="mt-4" onClick={handleBackToHome}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          На главную
-        </Button>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-muted-foreground" />
+              Приём заявок закрыт
+            </CardTitle>
+            <CardDescription>
+              В настоящее время нет когорты с открытым приёмом заявок.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Подача заявок на практику доступна только в период приёма активной когорты.
+              Пожалуйста, зайдите позже.
+            </p>
+            <Button variant="outline" className="mt-4" onClick={handleBackToHome}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              На главную
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

@@ -360,13 +360,18 @@ export default function AdminDocumentsPage() {
   const [reportStudent, setReportStudent] = useState<AdminStudentDocumentInfo | null>(null);
 
   const {
-    data: students,
+    data: rawData,
     isLoading,
     error,
   } = useQuery({
     queryKey: ["admin-students", cohortId],
     queryFn: () => fetchAdminDocumentsOverview(cohortId),
   });
+
+  // API может вернуть как массив, так и объект { students: [...] }
+  const students = Array.isArray(rawData)
+    ? rawData
+    : (rawData as unknown as { students?: AdminStudentDocumentInfo[] })?.students ?? [];
 
   if (isLoading) {
     return (

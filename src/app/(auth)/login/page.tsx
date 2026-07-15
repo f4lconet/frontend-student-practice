@@ -12,6 +12,7 @@ import { loginSchema, type LoginFormData } from "@/features/auth/schemas";
 import { ApiError } from "@/lib/api";
 import { resendVerification } from "@/lib/api/auth";
 
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -109,7 +110,18 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="container mx-auto flex min-h-screen items-center justify-center px-4">
+    <main className="container mx-auto flex min-h-screen flex-col items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mb-2"
+          onClick={() => router.back()}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Назад
+        </Button>
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Вход</CardTitle>
