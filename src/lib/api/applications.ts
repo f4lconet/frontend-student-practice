@@ -9,20 +9,45 @@ export interface PrefillDataResponse {
 export interface AdminApplication {
   id: string;
   userId: string;
-  userName: string;
   cohortId: string;
   status: string;
   roleId: string | null;
   reviewComment: string | null;
   createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    email: string;
+    role: "ADMIN" | "PRACTICANT";
+  };
+  fieldValues: Array<{
+    id: string;
+    applicationId: string;
+    fieldId: string;
+    value: string;
+    field: {
+      id: string;
+      cohortId: string;
+      label: string;
+      type: "text" | "select";
+      options: string | null;
+      order: number;
+      isRequired: boolean;
+    };
+  }>;
+}
+
+/** Заявка с ответами на поля анкеты — то, что приходит с бэкенда в /api/applications/my */
+export interface ApplicationWithFieldValues extends Application {
+  fieldValues: AdminApplication["fieldValues"];
 }
 
 /**
  * Получить список своих заявок.
  * GET /api/applications/my
  */
-export function fetchMyApplications(): Promise<Application[]> {
-  return apiClient.get<Application[]>("/applications/my");
+export function fetchMyApplications(): Promise<ApplicationWithFieldValues[]> {
+  return apiClient.get<ApplicationWithFieldValues[]>("/applications/my");
 }
 
 /**
@@ -80,17 +105,5 @@ export function rejectApplication(
   return apiClient.patch<Application>(
     `/admin/applications/${applicationId}/reject`,
     { reviewComment },
-  );
-}
-
-/**
- * Получить анкету заявки (админ, read-only).
- * GET /api/admin/applications/:applicationId/survey
- */
-export function fetchApplicationSurvey(
-  applicationId: string,
-): Promise<{ fields: SurveyField[]; answers: Record<string, string> }> {
-  return apiClient.get<{ fields: SurveyField[]; answers: Record<string, string> }>(
-    `/admin/applications/${applicationId}/survey`,
   );
 }

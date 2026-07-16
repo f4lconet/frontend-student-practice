@@ -10,9 +10,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/providers/auth-provider";
 import { loginSchema, type LoginFormData } from "@/features/auth/schemas";
 import { ApiError } from "@/lib/api";
-import { resendVerification } from "@/lib/api/auth";
 
-import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,13 +28,12 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const [isPending, setIsPending] = useState(false);
-  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
-  const [isResending, setIsResending] = useState(false);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -49,7 +46,6 @@ export default function LoginPage() {
   async function onSubmit(data: LoginFormData) {
     setIsPending(true);
     form.clearErrors();
-    setUnverifiedEmail(null);
 
     try {
       const user = await login(data.email, data.password);
@@ -66,25 +62,9 @@ export default function LoginPage() {
       router.refresh();
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.status === 401 && error.body && typeof error.body === "object" && "error" in error.body) {
-          const errBody = error.body as { error?: { code?: string } };
-          if (errBody.error?.code === "AUTHENTICATION_ERROR") {
-            // Email не подтверждён
-            setUnverifiedEmail(data.email);
-            form.setError("root", {
-              message: "Пожалуйста, подтвердите email перед входом. Проверьте почту.",
-            });
-          } else {
-            form.setError("password", {
-              message: "Неверный email или пароль",
-            });
-          }
-        } else {
-          form.setError("root", {
-            message: error.message,
-          });
-          toast.error(error.message);
-        }
+        form.setError("root", {
+          message: "Убедитесь что вы верно ввели почту и пароль",
+        });
       } else {
         form.setError("root", {
           message: "Произошла ошибка при входе. Попробуйте позже.",
@@ -96,32 +76,8 @@ export default function LoginPage() {
     }
   }
 
-  const handleResendVerification = async () => {
-    if (!unverifiedEmail) return;
-    setIsResending(true);
-    try {
-      await resendVerification(unverifiedEmail);
-      toast.success("Письмо отправлено повторно. Проверьте почту.");
-    } catch {
-      toast.error("Ошибка при отправке письма");
-    } finally {
-      setIsResending(false);
-    }
-  };
-
   return (
-    <main className="container mx-auto flex min-h-screen flex-col items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-2"
-          onClick={() => router.back()}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Назад
-        </Button>
-      </div>
+    <main className="container mx-auto flex min-h-screen items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Вход</CardTitle>
@@ -132,6 +88,11 @@ export default function LoginPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              {form.formState.errors.root && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  {form.formState.errors.root.message}
+                </div>
+              )}
               <FormField
                 control={form.control}
                 name="email"
@@ -159,8 +120,7 @@ export default function LoginPage() {
                   <FormItem>
                     <FormLabel>Пароль</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
+                      <PasswordInput
                         placeholder="••••••"
                         autoComplete="current-password"
                         disabled={isPending}
@@ -171,24 +131,6 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-
-              {unverifiedEmail && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                  <p className="mb-2 text-amber-800">
-                    Почта не подтверждена. Проверьте папку «Входящие» или «Спам».
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleResendVerification}
-                    disabled={isResending}
-                    className="w-full"
-                  >
-                    {isResending ? "Отправка..." : "Отправить письмо повторно"}
-                  </Button>
-                </div>
-              )}
 
               <Button
                 type="submit"

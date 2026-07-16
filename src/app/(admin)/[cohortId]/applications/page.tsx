@@ -7,7 +7,6 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
   fetchAdminApplications,
-  fetchApplicationSurvey,
   approveApplication,
   rejectApplication,
   type AdminApplication,
@@ -57,12 +56,10 @@ import {
   CheckCircle2,
   XCircle,
   MessageSquare,
-  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ApplicationStatus } from "@/entities/application";
 import type { CohortRole } from "@/entities/cohort-role";
-import type { SurveyField } from "@/entities/survey-field";
 
 const statusLabels: Record<ApplicationStatus, string> = {
   pending: "На рассмотрении",
@@ -87,14 +84,13 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function getFieldAnswerLabel(
-  field: SurveyField,
-  answer: string,
-): string {
-  if (field.type === "select" && field.options) {
-    return answer;
-  }
-  return answer;
+/** Получить ФИО из fieldValues или email как запасной вариант */
+function getUserName(app: AdminApplication): string {
+  const fioField = app.fieldValues.find(
+    (fv) => fv.field.label.toLowerCase() === "фио",
+  );
+  if (fioField?.value) return fioField.value;
+  return app.user?.email ?? "—";
 }
 
 // ---- Survey Dialog ----
@@ -107,15 +103,11 @@ function SurveyDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const {
-    data: surveyData,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["application-survey", application?.id],
-    queryFn: () => fetchApplicationSurvey(application!.id),
-    enabled: open && !!application,
-  });
+  if (!application) return null;
+
+  const sortedFields = [...application.fieldValues].sort(
+    (a, b) => a.field.order - b.field.order,
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -123,46 +115,33 @@ function SurveyDialog({
         <DialogHeader>
           <DialogTitle>Анкета кандидата</DialogTitle>
           <DialogDescription>
-            {application?.userName ?? "Загрузка..."}
+            {getUserName(application)}
           </DialogDescription>
         </DialogHeader>
 
-        {isLoading && (
-          <div className="space-y-3 py-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-8 w-full" />
-            ))}
+        <div className="space-y-4 py-2">
+          <div>
+            <Label className="text-sm text-muted-foreground">Email</Label>
+            <p className="mt-1 text-sm font-medium">
+              {application.user?.email ?? "—"}
+            </p>
           </div>
-        )}
 
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Ошибка загрузки анкеты
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {surveyData && (
-          <div className="space-y-4 py-2">
-            {surveyData.fields
-              .sort((a, b) => a.order - b.order)
-              .map((field) => {
-                const answer = surveyData.answers[field.id] ?? "—";
-                return (
-                  <div key={field.id}>
-                    <Label className="text-sm text-muted-foreground">
-                      {field.label}
-                    </Label>
-                    <p className="mt-1 text-sm font-medium">
-                      {getFieldAnswerLabel(field, answer)}
-                    </p>
-                  </div>
-                );
-              })}
-          </div>
-        )}
+          {sortedFields.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Данные анкеты отсутствуют
+            </p>
+          ) : (
+            sortedFields.map((fv) => (
+              <div key={fv.id}>
+                <Label className="text-sm text-muted-foreground">
+                  {fv.field.label}
+                </Label>
+                <p className="mt-1 text-sm font-medium">{fv.value || "—"}</p>
+              </div>
+            ))
+          )}
+        </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -205,16 +184,6 @@ function ApproveDialog({
         "admin-applications",
         cohortId,
       ]);
-      if (previous && application) {
-        queryClient.setQueryData<AdminApplication[]>(
-          ["admin-applications", cohortId],
-          previous.map((a) =>
-            a.id === application.id
-              ? { ...a, status: "approved" as const, roleId: selectedRoleId }
-              : a,
-          ),
-        );
-      }
       return { previous };
     },
     onError: (_err, _vars, context) => {
@@ -255,7 +224,7 @@ function ApproveDialog({
         <DialogHeader>
           <DialogTitle>Одобрить заявку</DialogTitle>
           <DialogDescription>
-            {application?.userName ?? "Загрузка..."}
+            {application ? getUserName(application) : "Загрузка..."}
           </DialogDescription>
         </DialogHeader>
 
@@ -276,10 +245,14 @@ function ApproveDialog({
                 }}
               >
                 <SelectTrigger id="approve-role">
-                  <SelectValue placeholder="Выберите роль" />
+                  <span className="text-sm">
+                    {selectedRoleId
+                      ? roles.find((r: CohortRole) => r.id === selectedRoleId)?.name ?? selectedRoleId
+                      : "Выберите роль"}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
-                  {roles.map((role) => (
+                  {roles.map((role: CohortRole) => (
                     <SelectItem key={role.id} value={role.id}>
                       {role.name}
                     </SelectItem>
@@ -331,20 +304,6 @@ function RejectDialog({
         "admin-applications",
         cohortId,
       ]);
-      if (previous && application) {
-        queryClient.setQueryData<AdminApplication[]>(
-          ["admin-applications", cohortId],
-          previous.map((a) =>
-            a.id === application.id
-              ? {
-                  ...a,
-                  status: "rejected" as const,
-                  reviewComment: comment || null,
-                }
-              : a,
-          ),
-        );
-      }
       return { previous };
     },
     onError: (_err, _vars, context) => {
@@ -384,7 +343,7 @@ function RejectDialog({
         <DialogHeader>
           <DialogTitle>Отклонить заявку</DialogTitle>
           <DialogDescription>
-            {application?.userName ?? "Загрузка..."}
+            {application ? getUserName(application) : "Загрузка..."}
           </DialogDescription>
         </DialogHeader>
 
@@ -438,7 +397,7 @@ export default function AdminApplicationsPage() {
   );
 
   const {
-    data: applications,
+    data: rawData,
     isLoading,
     error,
   } = useQuery({
@@ -446,13 +405,35 @@ export default function AdminApplicationsPage() {
     queryFn: () => fetchAdminApplications(cohortId),
   });
 
+  // API может вернуть как массив, так и объект { applications: [...] }
+  const applications: AdminApplication[] = Array.isArray(rawData)
+    ? rawData
+    : (rawData as unknown as { applications?: AdminApplication[] })?.applications ?? [];
+
+  // Загружаем роли когорты для отображения названия роли
+  const { data: cohortRoles } = useQuery({
+    queryKey: ["cohort-roles", cohortId],
+    queryFn: () => fetchCohortRoles(cohortId),
+    enabled: !!cohortId,
+  });
+
+  // Маппинг roleId → название роли
+  const roleNameMap = useMemo(() => {
+    if (!cohortRoles) return {} as Record<string, string>;
+    const map: Record<string, string> = {};
+    for (const role of cohortRoles) {
+      map[role.id] = role.name;
+    }
+    return map;
+  }, [cohortRoles]);
+
   const filteredApps = useMemo(() => {
     if (!applications) return [];
     return applications.filter((app) => {
       if (statusFilter !== "all" && app.status !== statusFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const name = app.userName?.toLowerCase() ?? "";
+        const name = getUserName(app).toLowerCase();
         if (!name.includes(q)) return false;
       }
       return true;
@@ -500,19 +481,30 @@ export default function AdminApplicationsPage() {
             className="pl-8"
           />
         </div>
-        <Select value={statusFilter} onValueChange={(v) => {
-          if (v) setStatusFilter(v);
-        }}>
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <SelectValue placeholder="Все статусы" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все статусы</SelectItem>
-            <SelectItem value="pending">На рассмотрении</SelectItem>
-            <SelectItem value="approved">Одобрена</SelectItem>
-            <SelectItem value="rejected">Отклонена</SelectItem>
-          </SelectContent>
-        </Select>
+        {(() => {
+          const filterLabels: Record<string, string> = {
+            all: "Все статусы",
+            pending: "На рассмотрении",
+            approved: "Одобрена",
+            rejected: "Отклонена",
+          };
+
+          return (
+            <Select value={statusFilter} onValueChange={(v) => {
+              if (v) setStatusFilter(v);
+            }}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <span className="text-sm">{filterLabels[statusFilter] || statusFilter}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все статусы</SelectItem>
+                <SelectItem value="pending">На рассмотрении</SelectItem>
+                <SelectItem value="approved">Одобрена</SelectItem>
+                <SelectItem value="rejected">Отклонена</SelectItem>
+              </SelectContent>
+            </Select>
+          );
+        })()}
       </div>
 
       {/* Таблица */}
@@ -540,6 +532,7 @@ export default function AdminApplicationsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>ФИО кандидата</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Дата подачи</TableHead>
                 <TableHead>Статус</TableHead>
                 <TableHead>Роль</TableHead>
@@ -550,7 +543,10 @@ export default function AdminApplicationsPage() {
               {filteredApps.map((app) => (
                 <TableRow key={app.id}>
                   <TableCell className="font-medium">
-                    {app.userName ?? "—"}
+                    {getUserName(app)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {app.user?.email ?? "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatDate(app.createdAt)}
@@ -561,7 +557,7 @@ export default function AdminApplicationsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {app.roleId ? "Назначена" : "—"}
+                    {app.roleId ? (roleNameMap[app.roleId] ?? "Назначена") : "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">

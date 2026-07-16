@@ -13,8 +13,9 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { fetchTasks, createTask, updateTask, deleteTask } from "@/lib/api/tasks";
 import { fetchDashboard } from "@/lib/api/dashboard";
-import { fetchCohort } from "@/lib/api/cohorts";
-import { WeekGrid } from "@/features/tasks/week-grid";
+import { fetchCohort, fetchActiveCohort } from "@/lib/api/cohorts";
+import { fetchCohortParticipants } from "@/lib/api/participants";
+import { MultiParticipantGrid } from "@/features/tasks/multi-participant-grid";
 import { TaskCardDialog } from "@/features/tasks/task-card-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,8 @@ export default function CabinetTasksPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogTask, setDialogTask] = useState<TaskCard | null>(null);
   const [dialogDate, setDialogDate] = useState<string | null>(null);
+  const [dialogParticipantUserId, setDialogParticipantUserId] = useState<string | null>(null);
+  const [dialogParticipantName, setDialogParticipantName] = useState<string | undefined>(undefined);
 
   const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
 
@@ -46,15 +49,24 @@ export default function CabinetTasksPage() {
 
   const cohortId = dashboard?.applications?.[0]?.cohortId ?? "";
 
-  // Загружаем данные когорты, чтобы получить реальные даты практики
+  // Загружаем данные когорты
   const { data: cohort } = useQuery({
     queryKey: ["cohort", cohortId],
-    queryFn: () => fetchCohort(cohortId),
+    queryFn: async () => {
+      const adminCohort = await fetchCohort(cohortId).catch(() => null);
+      if (adminCohort) return adminCohort;
+
+      const activeCohort = await fetchActiveCohort().catch(() => null);
+      if (activeCohort && activeCohort.id === cohortId) return activeCohort;
+
+      return null;
+    },
     enabled: !!cohortId,
+    retry: false,
   });
 
-  const practiceStart = cohort ? new Date(cohort.practiceStart) : new Date();
-  const practiceEnd = cohort ? new Date(cohort.practiceEnd) : new Date();
+  const practiceStart = cohort ? new Date(cohort.practiceStart) : subWeeks(currentWeekStart, 52);
+  const practiceEnd = cohort ? new Date(cohort.practiceEnd) : addWeeks(currentWeekStart, 52);
 
   // Загрузка задач
   const tasksQuery = useQuery({
@@ -62,6 +74,27 @@ export default function CabinetTasksPage() {
     queryFn: () => fetchTasks({ cohortId, weekStart: weekStartStr, all: showAll }),
     enabled: !!cohortId,
   });
+
+  // Загрузка участников (нужны для отображения ФИО)
+  const { data: participants = [] } = useQuery({
+    queryKey: ["cohort-participants", cohortId],
+    queryFn: () => fetchCohortParticipants(cohortId),
+    enabled: !!cohortId && showAll,
+  });
+
+  // Создаём участника для текущего пользователя, если его нет в списке
+  const allParticipants = useMemo(() => {
+    if (participants.length === 0 && userId) {
+      // Если участники не загружены (showAll=false), создаём виртуального
+      return [{ userId, userName: "Вы" }];
+    }
+    // Убеждаемся, что текущий пользователь есть в списке
+    const hasCurrent = participants.some((p) => p.userId === userId);
+    if (!hasCurrent && userId) {
+      return [...participants, { userId, userName: "Вы" }];
+    }
+    return participants;
+  }, [participants, userId]);
 
   const workdays = tasksQuery.data?.workdays ?? [];
   const tasks = workdays.flatMap((wd) => wd.tasks);
@@ -110,29 +143,31 @@ export default function CabinetTasksPage() {
   }, []);
 
   const handleCellClick = useCallback(
-    (date: string, task: TaskCard | null) => {
+    (date: string, task: TaskCard | null, participantUserId: string) => {
       setDialogTask(task);
       setDialogDate(date);
+      setDialogParticipantUserId(participantUserId);
+      // Ищем ФИО
+      const participant = allParticipants.find((p) => p.userId === participantUserId);
+      setDialogParticipantName(participant?.userName);
       setDialogOpen(true);
     },
-    [],
+    [allParticipants],
   );
 
   const handleSave = useCallback(
     (data: { title: string; description: string; artifactLink: string | null }) => {
-      // Преобразуем null → undefined для совместимости с API
+      // Отправляем только непустые поля, чтобы не ломать бэкенд
+      const payload: { title: string; description?: string; artifactLink?: string } = {
+        title: data.title,
+      };
+      if (data.description) payload.description = data.description;
+      if (data.artifactLink) payload.artifactLink = data.artifactLink;
+
       if (dialogTask) {
-        updateMutation.mutate({
-          id: dialogTask.id,
-          ...data,
-          artifactLink: data.artifactLink ?? undefined,
-        });
+        updateMutation.mutate({ id: dialogTask.id, ...payload });
       } else if (dialogDate) {
-        createMutation.mutate({
-          date: dialogDate,
-          ...data,
-          artifactLink: data.artifactLink ?? undefined,
-        });
+        createMutation.mutate({ date: dialogDate, ...payload });
       }
     },
     [dialogTask, dialogDate, createMutation, updateMutation],
@@ -146,7 +181,7 @@ export default function CabinetTasksPage() {
   );
 
   const isDialogReadOnly =
-    showAll && dialogTask !== null && dialogTask.userId !== userId;
+    dialogParticipantUserId !== null && dialogParticipantUserId !== userId;
 
   if (isLoading) {
     return (
@@ -201,19 +236,21 @@ export default function CabinetTasksPage() {
           <Users className="h-4 w-4" />
           <AlertTitle>Режим просмотра всех участников</AlertTitle>
           <AlertDescription>
-            Отображаются задачи всех участников когорты. Чужие карточки — только
-            для просмотра.
+            Отображаются задачи всех участников когорты. Слева — ФИО практиканта.
+            Чужие карточки — только для просмотра.
           </AlertDescription>
         </Alert>
       )}
 
-      <WeekGrid
+      <MultiParticipantGrid
         currentWeekStart={currentWeekStart}
         practiceStart={practiceStart}
         practiceEnd={practiceEnd}
         tasks={tasks}
-        userId={userId}
+        participants={allParticipants}
+        currentUserId={userId}
         showAll={showAll}
+        canEdit={true}
         onPrevWeek={handlePrevWeek}
         onNextWeek={handleNextWeek}
         onCellClick={handleCellClick}
@@ -225,6 +262,7 @@ export default function CabinetTasksPage() {
         task={dialogTask}
         date={dialogDate}
         readOnly={isDialogReadOnly}
+        participantName={dialogParticipantName}
         onSave={handleSave}
         onDelete={handleDelete}
       />

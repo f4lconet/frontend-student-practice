@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { toast } from "sonner";
+import { useAuth } from "@/providers/auth-provider";
 import { fetchPublicActiveCohort, fetchPublicSurveyFields, submitApplication } from "@/lib/api/survey";
 import type { SurveyConfigResponse } from "@/lib/api/survey";
 import type { Application } from "@/entities";
@@ -20,6 +21,7 @@ interface UseSurveyPageOptions {
 export function useSurveyPage(slug: string, options?: UseSurveyPageOptions) {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
 
   // 1. Получаем активную когорту по публичному эндпоинту
   const activeCohortQuery = useQuery({
@@ -54,9 +56,23 @@ export function useSurveyPage(slug: string, options?: UseSurveyPageOptions) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       toast.success("Анкета успешно отправлена!");
+
+      // Если пользователь не авторизован — перенаправляем на регистрацию
+      if (!isAuthenticated) {
+        setTimeout(() => {
+          router.push("/register");
+        }, 2000);
+      }
     },
     onError: (error: Error) => {
-      toast.error(error.message ?? "Ошибка при отправке анкеты");
+      // Если ошибка 401 (не авторизован) — перенаправляем на регистрацию без предупреждения
+      if (error.message?.includes("401") || error.message?.includes("Unauthorized")) {
+        setTimeout(() => {
+          router.push("/register");
+        }, 1000);
+      } else {
+        toast.error(error.message ?? "Ошибка при отправке анкеты");
+      }
     },
   });
 

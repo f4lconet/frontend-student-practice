@@ -16,6 +16,8 @@ export interface ApiRequestConfig extends Omit<RequestInit, "body"> {
   skipAuth?: boolean;
   /** Не вызывать обработчик 401 (для случаев, когда 401 — ожидаемое поведение, например проверка сессии) */
   skipUnauthorizedRedirect?: boolean;
+  /** Тип ответа. 'blob' — для скачивания бинарных файлов */
+  responseType?: "json" | "text" | "blob";
 }
 
 export interface ApiClientOptions {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -9,9 +9,9 @@ import { toast } from "sonner";
 
 import { useAuth } from "@/providers/auth-provider";
 import { registerSchema, type RegisterFormData } from "@/features/auth/schemas";
+import { resendVerification } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api";
 
-import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,11 +29,34 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
+import { Loader2, MailCheck } from "lucide-react";
+
+type PageState = "form" | "success";
 
 export default function RegisterPage() {
   const router = useRouter();
   const { register: registerUser } = useAuth();
+  const [pageState, setPageState] = useState<PageState>("form");
+  const [registeredEmail, setRegisteredEmail] = useState("");
   const [isPending, setIsPending] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Таймер обратного отсчёта для повторной отправки
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  function startCooldown(seconds = 60) {
+    setResendCooldown(seconds);
+  }
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -52,7 +75,7 @@ export default function RegisterPage() {
     form.clearErrors();
 
     try {
-      const user = await registerUser({
+      await registerUser({
         email: data.email,
         password: data.password,
         firstName: data.firstName,
@@ -60,10 +83,10 @@ export default function RegisterPage() {
         role: "PRACTICANT",
       });
 
-      toast.success("Регистрация прошла успешно! Проверьте почту для подтверждения email.");
-
-      router.push("/login");
-      router.refresh();
+      setRegisteredEmail(data.email);
+      setPageState("success");
+      startCooldown(60);
+      toast.success("Регистрация прошла успешно! Проверьте почту.");
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.status === 409) {
@@ -87,19 +110,77 @@ export default function RegisterPage() {
     }
   }
 
+  async function handleResend() {
+    setIsResending(true);
+    try {
+      await resendVerification(registeredEmail);
+      toast.success("Письмо отправлено повторно! Проверьте почту.");
+      startCooldown(60);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast.error(error.message);
+      } else {
+        toast.error("Не удалось отправить письмо. Попробуйте позже.");
+      }
+    } finally {
+      setIsResending(false);
+    }
+  }
+
+  if (pageState === "success") {
+    return (
+      <main className="container mx-auto flex min-h-screen items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <div className="flex justify-center py-2">
+              <MailCheck className="h-12 w-12 text-primary" />
+            </div>
+            <CardTitle className="text-center text-2xl font-bold">
+              Проверьте почту
+            </CardTitle>
+            <CardDescription className="text-center">
+              Мы отправили письмо для подтверждения email на адрес{" "}
+              <span className="font-medium text-foreground">{registeredEmail}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-center text-sm text-muted-foreground">
+              Если письмо не пришло, проверьте папку «Спам» или нажмите кнопку ниже,
+              чтобы отправить его снова.
+            </p>
+
+            <Button
+              className="w-full"
+              variant="outline"
+              disabled={isResending || resendCooldown > 0}
+              onClick={handleResend}
+            >
+              {isResending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Отправка...
+                </>
+              ) : resendCooldown > 0 ? (
+                `Повторная отправка через ${resendCooldown} с`
+              ) : (
+                "Отправить письмо повторно"
+              )}
+            </Button>
+
+            <Button
+              className="w-full"
+              onClick={() => router.push("/login")}
+            >
+              Перейти к входу
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
   return (
-    <main className="container mx-auto flex min-h-screen flex-col items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-2"
-          onClick={() => router.back()}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Назад
-        </Button>
-      </div>
+    <main className="container mx-auto flex min-h-screen items-center justify-center px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Регистрация</CardTitle>
@@ -177,8 +258,7 @@ export default function RegisterPage() {
                   <FormItem>
                     <FormLabel>Пароль</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
+                      <PasswordInput
                         placeholder="Минимум 8 символов"
                         autoComplete="new-password"
                         disabled={isPending}
@@ -197,8 +277,7 @@ export default function RegisterPage() {
                   <FormItem>
                     <FormLabel>Подтверждение пароля</FormLabel>
                     <FormControl>
-                      <Input
-                        type="password"
+                      <PasswordInput
                         placeholder="Повторите пароль"
                         autoComplete="new-password"
                         disabled={isPending}

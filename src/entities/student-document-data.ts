@@ -3,6 +3,7 @@ export interface StudentDocumentData {
   userId: string;
   cohortId: string;
   studentFio: string | null;
+  institute: string | null;
   group: string | null;
   directionCode: string | null;
   directionName: string | null;

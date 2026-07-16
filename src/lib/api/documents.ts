@@ -23,14 +23,51 @@ export interface StudentDocumentData {
   reportAdminApproved: boolean;
 }
 
+/** Ответ от бэкенда: один студент */
 export interface AdminStudentDocumentInfo {
   userId: string;
+  userEmail: string;
+  /** ФИО — пытаемся извлечь из userEmail или поля анкеты */
   userName: string;
-  studentFio: string | null;
-  studentDataComplete: boolean;
-  reviewComplete: boolean;
+  /** Загружен ли отчёт */
+  reportUploaded: boolean;
+  /** Статус отчёта */
+  reportStatus: string;
+  /** Статус ИЗ */
+  individualTaskStatus: string;
+  /** Статус отзыва */
+  reviewStatus: string;
+  /** Статус титульного листа */
+  titlePageStatus: string;
+  /** Заполнены ли поля ИЗ студентом */
+  individualTaskFieldsFilled: boolean;
+  /** ИЗ готово к формированию */
+  individualTaskReady: boolean;
+  /** Заполнены ли поля отзыва администратором */
+  reviewFieldsFilled: boolean;
+  /** Отзыв готов к формированию */
+  reviewReady: boolean;
+  /** Заполнены ли поля титульного листа */
+  titlePageFieldsFilled: boolean;
+  /** Титульный лист готов к формированию */
+  titlePageReady: boolean;
+  /** Существует ли запись документов */
+  docExists: boolean;
+  /** Статус заявки */
+  status: string;
+  /** ID роли */
+  roleId: string;
+  /** URL файла отчёта (если есть) */
   reportFileUrl: string | null;
+  /** Одобрен ли отчёт администратором */
   reportAdminApproved: boolean;
+}
+
+export interface AdminDocumentsOverviewResponse {
+  cohortId: string;
+  cohortName: string;
+  totalApproved: number;
+  students: AdminStudentDocumentInfo[];
 }
 
 // ---- Student-facing API ----
@@ -85,9 +122,14 @@ export function generateDocument(type: "individual-task" | "title-page" | "revie
  * GET /api/admin/cohorts/:cohortId/documents-overview
  */
 export function fetchAdminDocumentsOverview(cohortId: string): Promise<AdminStudentDocumentInfo[]> {
-  return apiClient.get<AdminStudentDocumentInfo[]>(
+  return apiClient.get<AdminDocumentsOverviewResponse | AdminStudentDocumentInfo[]>(
     `/admin/cohorts/${cohortId}/documents-overview`,
-  );
+  ).then((data) => {
+    if (Array.isArray(data)) {
+      return data;
+    }
+    return data?.students ?? [];
+  });
 }
 
 /**
@@ -127,4 +169,15 @@ export function approveReport(
     `/admin/documents/${userId}/${cohortId}/approve-report`,
     { approved },
   );
+}
+
+/**
+ * Скачать файл отчёта через API с авторизацией.
+ * GET /api/documents/my/report/download
+ */
+export function downloadReportFile(fileUrl: string): Promise<Blob> {
+  const url = fileUrl.startsWith("/") ? fileUrl : `/${fileUrl}`;
+  return apiClient.get<Blob>(url, {
+    responseType: "blob",
+  });
 }

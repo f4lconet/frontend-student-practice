@@ -95,7 +95,7 @@ function ReviewDialog({
 
   const saveMutation = useMutation({
     mutationFn: (data: typeof formData) =>
-      saveAdminReview(cohortId, student!.userId, data),
+      saveAdminReview(student!.userId, cohortId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["admin-students", cohortId],
@@ -272,7 +272,13 @@ function ReportDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const [approved, setApproved] = useState(false);
+  const [approved, setApproved] = useState(student?.reportStatus === "approved");
+  const [downloading, setDownloading] = useState(false);
+
+  // Синхронизация при открытии диалога для другого студента
+  if (student && approved !== (student.reportStatus === "approved")) {
+    setApproved(student.reportStatus === "approved");
+  }
 
   const approveMutation = useMutation({
     mutationFn: (value: boolean) =>
@@ -291,6 +297,33 @@ function ReportDialog({
     approveMutation.mutate(value);
   };
 
+  const handleDownload = async () => {
+    if (!student?.reportFileUrl || downloading) return;
+    setDownloading(true);
+    try {
+      const fileName = student.reportFileUrl.replace(/^.*[/\\]/, "").replace(/^\//, "");
+      const { getAccessToken } = await import("@/lib/api/token-strategy");
+      const token = getAccessToken();
+      const res = await fetch(`/api/uploads/${fileName}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName || "report.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Не удалось загрузить файл отчёта");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (!student) return null;
 
   return (
@@ -307,15 +340,14 @@ function ReportDialog({
             {student.reportFileUrl ? (
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                <a
-                  href={student.reportFileUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline flex items-center gap-1"
+                <button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="text-sm text-primary hover:underline flex items-center gap-1 disabled:opacity-50"
                 >
-                  Скачать / Открыть отчёт
+                  {downloading ? "Скачивание..." : "Скачать отчёт"}
                   <ExternalLink className="h-3 w-3" />
-                </a>
+                </button>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -360,18 +392,13 @@ export default function AdminDocumentsPage() {
   const [reportStudent, setReportStudent] = useState<AdminStudentDocumentInfo | null>(null);
 
   const {
-    data: rawData,
+    data: students,
     isLoading,
     error,
   } = useQuery({
     queryKey: ["admin-students", cohortId],
     queryFn: () => fetchAdminDocumentsOverview(cohortId),
   });
-
-  // API может вернуть как массив, так и объект { students: [...] }
-  const students = Array.isArray(rawData)
-    ? rawData
-    : (rawData as unknown as { students?: AdminStudentDocumentInfo[] })?.students ?? [];
 
   if (isLoading) {
     return (
@@ -428,22 +455,22 @@ export default function AdminDocumentsPage() {
               {students.map((student) => (
                 <TableRow key={student.userId}>
                   <TableCell className="font-medium">
-                    {student.userName}
+                    {student.userName || student.userEmail || "—"}
                   </TableCell>
                   <TableCell className="text-center">
-                    <StatusBadge ready={student.studentDataComplete} />
+                    <StatusBadge ready={student.individualTaskReady} />
                   </TableCell>
                   <TableCell className="text-center">
-                    <StatusBadge ready={student.reviewComplete} />
+                    <StatusBadge ready={student.reviewReady} />
                   </TableCell>
                   <TableCell className="text-center">
-                    <StatusBadge ready={!!(student.reportFileUrl && student.reportAdminApproved)} />
+                    <StatusBadge ready={!!(student.reportUploaded && student.reportStatus === "approved")} />
                   </TableCell>
                   <TableCell className="text-center">
-                    {student.reportFileUrl ? (
+                    {student.reportUploaded ? (
                       <Badge variant="outline" className="gap-1">
                         <CheckCircle2 className="h-3 w-3 text-green-600" />
-                        Загружен
+                        {student.reportStatus === "approved" ? "Одобрен" : "Загружен"}
                       </Badge>
                     ) : (
                       <Badge variant="secondary" className="gap-1">

@@ -6,11 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, LogOut } from "lucide-react";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, logout } = useAuth();
 
   if (isLoading || !user) {
     return (
@@ -73,6 +73,19 @@ export default function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="mt-6 flex justify-center">
+        <Button
+          variant="outline"
+          className="w-full max-w-lg"
+          onClick={() => {
+            logout();
+          }}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          Выйти
+        </Button>
+      </div>
     </div>
   );
 }

@@ -10,3 +10,20 @@ export interface Application {
   reviewComment: string | null;
   createdAt: string;
 }
+
+/** Поле анкеты со значением ответа */
+export interface ApplicationFieldValue {
+  id: string;
+  applicationId: string;
+  fieldId: string;
+  value: string;
+  field: {
+    id: string;
+    cohortId: string;
+    label: string;
+    type: "text" | "select";
+    options: string | null;
+    order: number;
+    isRequired: boolean;
+  };
+}

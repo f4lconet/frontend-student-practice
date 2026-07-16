@@ -13,11 +13,13 @@ import { SurveyFieldInput } from "@/features/survey/survey-field-input";
 import { useSurveyPage } from "@/features/survey/use-survey-page";
 import { buildSurveySchema } from "@/lib/form-utils";
 import type { TestTask } from "@/entities/test-task";
-import { AlertCircle, CheckCircle2, ArrowLeft, FileText, Clock } from "lucide-react";
+import { useAuth } from "@/providers/auth-provider";
+import { AlertCircle, CheckCircle2, ArrowLeft, FileText, Clock, UserPlus } from "lucide-react";
 
 export default function SurveyPage() {
   const params = useParams();
   const slug = params.cohortSlug as string;
+  const { isAuthenticated } = useAuth();
 
   const {
     fields,
@@ -224,6 +226,14 @@ export default function SurveyPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {!isAuthenticated && (
+            <Alert className="mb-6">
+              <AlertDescription>
+                Вы можете заполнить анкету сейчас. После отправки система предложит
+                зарегистрироваться, чтобы вы могли отслеживать статус заявки в личном кабинете.
+              </AlertDescription>
+            </Alert>
+          )}
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(handleSubmit)}

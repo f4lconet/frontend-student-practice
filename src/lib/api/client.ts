@@ -53,7 +53,7 @@ function buildHeaders(
 ): Headers {
   const headers = new Headers(config.headers);
 
-  if (hasBody && !headers.has("Content-Type")) {
+  if (hasBody && !headers.has("Content-Type") && !isFormData) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -67,7 +67,11 @@ function buildHeaders(
   return headers;
 }
 
-async function parseResponseBody(response: Response): Promise<unknown> {
+async function parseResponseBody(response: Response, responseType?: "json" | "text" | "blob"): Promise<unknown> {
+  if (responseType === "blob") {
+    return response.blob();
+  }
+
   const contentType = response.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
@@ -104,7 +108,7 @@ export async function apiRequest<T>(
 
   const response = await fetch(url, fetchInit);
 
-  const body = await parseResponseBody(response);
+  const body = await parseResponseBody(response, config.responseType);
 
   if (
     response.status === 401 &&

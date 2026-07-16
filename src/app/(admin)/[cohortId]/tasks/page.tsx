@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { startOfWeek, subWeeks, addWeeks, parseISO, format } from "date-fns";
 
 import { fetchTasks } from "@/lib/api/tasks";
 import { fetchCohort } from "@/lib/api/cohorts";
-import { WeekGrid } from "@/features/tasks/week-grid";
+import { fetchCohortParticipants } from "@/lib/api/participants";
+import { MultiParticipantGrid } from "@/features/tasks/multi-participant-grid";
 import { TaskCardDialog } from "@/features/tasks/task-card-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -24,16 +25,11 @@ export default function AdminTasksPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogTask, setDialogTask] = useState<TaskCard | null>(null);
   const [dialogDate, setDialogDate] = useState<string | null>(null);
-
-  const weekEnd = useMemo(() => {
-    const d = new Date(currentWeekStart);
-    d.setDate(d.getDate() + 4);
-    return format(d, "yyyy-MM-dd");
-  }, [currentWeekStart]);
+  const [dialogParticipantName, setDialogParticipantName] = useState<string | undefined>(undefined);
 
   const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
 
-  // Загружаем данные когорты, чтобы получить реальные даты практики
+  // Загружаем данные когорты
   const { data: cohort } = useQuery({
     queryKey: ["cohort", cohortId],
     queryFn: () => fetchCohort(cohortId),
@@ -43,15 +39,23 @@ export default function AdminTasksPage() {
   const practiceStart = cohort ? parseISO(cohort.practiceStart) : new Date();
   const practiceEnd = cohort ? parseISO(cohort.practiceEnd) : new Date();
 
-  // Админ всегда видит всех участников
-  const { data, isLoading, error } = useQuery({
+  // Загружаем задачи всех участников
+  const { data, isLoading: tasksLoading, error: tasksError } = useQuery({
     queryKey: ["admin-tasks", cohortId, weekStartStr],
     queryFn: () => fetchTasks({ cohortId, weekStart: weekStartStr, all: true }),
     enabled: !!cohortId,
   });
 
+  // Загружаем список участников когорты
+  const { data: participants = [], isLoading: participantsLoading } = useQuery({
+    queryKey: ["cohort-participants", cohortId],
+    queryFn: () => fetchCohortParticipants(cohortId),
+    enabled: !!cohortId,
+  });
+
   const workdays = data?.workdays ?? [];
   const tasks = workdays.flatMap((wd: { date: string; tasks: TaskCard[] }) => wd.tasks);
+  const isLoading = tasksLoading || participantsLoading;
 
   const handlePrevWeek = useCallback(() => {
     setCurrentWeekStart((prev) => subWeeks(prev, 1));
@@ -61,15 +65,18 @@ export default function AdminTasksPage() {
     setCurrentWeekStart((prev) => addWeeks(prev, 1));
   }, []);
 
-  // Клик по ячейке — всегда readOnly для админа
+  // Клик по ячейке — просмотр (readOnly для админа)
   const handleCellClick = useCallback(
-    (date: string, task: TaskCard | null) => {
+    (date: string, task: TaskCard | null, participantUserId: string) => {
       if (!task) return; // Админ не может создавать задачи
       setDialogTask(task);
       setDialogDate(date);
+      // Ищем ФИО участника
+      const participant = participants.find((p) => p.userId === participantUserId);
+      setDialogParticipantName(participant?.userName);
       setDialogOpen(true);
     },
-    [],
+    [participants],
   );
 
   if (isLoading) {
@@ -86,7 +93,7 @@ export default function AdminTasksPage() {
     );
   }
 
-  if (error) {
+  if (tasksError) {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
@@ -102,25 +109,27 @@ export default function AdminTasksPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Задачи</h1>
         <p className="text-sm text-muted-foreground">
-          Просмотр задач всех участников когорты
+          {data?.cohortName ?? "Недельная сетка задач"} — просмотр всех участников
         </p>
       </div>
 
       <Alert>
         <Users className="h-4 w-4" />
         <AlertDescription>
-          Отображаются задачи всех участников когорты. Карточки — только для
-          просмотра.
+          Отображаются задачи всех участников когорты. Слева — ФИО практиканта.
+          Карточки — только для просмотра.
         </AlertDescription>
       </Alert>
 
-      <WeekGrid
+      <MultiParticipantGrid
         currentWeekStart={currentWeekStart}
         practiceStart={practiceStart}
         practiceEnd={practiceEnd}
         tasks={tasks}
-        userId=""
+        participants={participants}
+        currentUserId=""
         showAll={true}
+        canEdit={false}
         onPrevWeek={handlePrevWeek}
         onNextWeek={handleNextWeek}
         onCellClick={handleCellClick}
@@ -132,6 +141,7 @@ export default function AdminTasksPage() {
         task={dialogTask}
         date={dialogDate}
         readOnly={true}
+        participantName={dialogParticipantName}
         onSave={() => {}}
       />
     </div>

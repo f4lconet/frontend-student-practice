@@ -2,15 +2,42 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { fetchMyApplications, fetchPrefillData } from "@/lib/api/applications";
+import { useState } from "react";
+import {
+  fetchMyApplications,
+  fetchPrefillData,
+  type ApplicationWithFieldValues,
+} from "@/lib/api/applications";
 import { fetchPublicActiveCohort } from "@/lib/api/survey";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, FileText, Plus, Calendar, MessageSquare } from "lucide-react";
-import type { ApplicationStatus, Application } from "@/entities";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  AlertCircle,
+  FileText,
+  Plus,
+  Calendar,
+  MessageSquare,
+  Eye,
+} from "lucide-react";
+import type { ApplicationStatus } from "@/entities";
 
 const statusLabels: Record<ApplicationStatus, string> = {
   pending: "На рассмотрении",
@@ -33,7 +60,64 @@ function formatDate(dateStr: string): string {
   });
 }
 
+// ---- Application Detail Dialog ----
+function ApplicationDetailDialog({
+  application,
+  open,
+  onOpenChange,
+}: {
+  application: ApplicationWithFieldValues | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!application) return null;
+
+  const sortedFields = application.fieldValues
+    ? [...application.fieldValues].sort((a, b) => a.field.order - b.field.order)
+    : [];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Данные заявки</DialogTitle>
+          <DialogDescription>
+            {application.cohortName ?? "Когорта"}
+          </DialogDescription>
+        </DialogHeader>
+
+        {sortedFields.length === 0 ? (
+          <p className="py-4 text-sm text-muted-foreground">
+            Данные анкеты отсутствуют
+          </p>
+        ) : (
+          <div className="space-y-4 py-2">
+            {sortedFields.map((fv) => (
+              <div key={fv.id}>
+                <Label className="text-sm text-muted-foreground">
+                  {fv.field.label}
+                </Label>
+                <p className="mt-1 text-sm font-medium">
+                  {fv.value || "—"}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Закрыть
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function CabinetApplicationsPage() {
+  const [viewingApp, setViewingApp] = useState<ApplicationWithFieldValues | null>(null);
+
   const applicationsQuery = useQuery({
     queryKey: ["applications"],
     queryFn: () => fetchMyApplications(),
@@ -45,8 +129,10 @@ export default function CabinetApplicationsPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const applications: Application[] = applicationsQuery.data ?? [];
-  const hasPrefill = prefillQuery.data?.data && Object.keys(prefillQuery.data.data).length > 0;
+  const applications: ApplicationWithFieldValues[] = applicationsQuery.data ?? [];
+  const hasPrefill =
+    prefillQuery.data?.data &&
+    Object.keys(prefillQuery.data.data).length > 0;
 
   // Получаем активную когорту для ссылки "Подать заявку"
   const { data: activeCohort } = useQuery({
@@ -55,7 +141,9 @@ export default function CabinetApplicationsPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const surveyHref = activeCohort ? `/survey/${activeCohort.name}` : "/survey/current";
+  const surveyHref = activeCohort
+    ? `/survey/${activeCohort.name}`
+    : "/survey/current";
 
   if (applicationsQuery.isLoading) {
     return (
@@ -115,7 +203,9 @@ export default function CabinetApplicationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Заявки на практику</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Заявки на практику
+          </h1>
           <p className="text-sm text-muted-foreground">
             Всего заявок: {applications.length}
           </p>
@@ -153,9 +243,19 @@ export default function CabinetApplicationsPage() {
                     {formatDate(app.createdAt)}
                   </CardDescription>
                 </div>
-                <Badge variant={statusVariants[app.status]}>
-                  {statusLabels[app.status]}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setViewingApp(app)}
+                    title="Просмотреть данные заявки"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </Button>
+                  <Badge variant={statusVariants[app.status]}>
+                    {statusLabels[app.status]}
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             {app.reviewComment && (
@@ -174,6 +274,15 @@ export default function CabinetApplicationsPage() {
           </Card>
         ))}
       </div>
+
+      {/* Диалог просмотра данных заявки */}
+      <ApplicationDetailDialog
+        application={viewingApp}
+        open={viewingApp !== null}
+        onOpenChange={(open) => {
+          if (!open) setViewingApp(null);
+        }}
+      />
     </div>
   );
 }
